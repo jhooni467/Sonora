@@ -64,7 +64,7 @@ class SonoraBridgeClient(private val context: Context) {
             .header("Cache-Control", "no-cache")
             .get()
             .build()
-        http.newCall(request).execute().use { response ->
+        http.newCall(request).apply { timeout().timeout(15, TimeUnit.SECONDS) }.execute().use { response ->
             if (!response.isSuccessful) throw IOException("No se pudo cargar la configuración de conexión.")
             val config = JSONObject(response.body?.string().orEmpty())
             val configuredUrl = config.optString("bridgeUrl", "").trim()
