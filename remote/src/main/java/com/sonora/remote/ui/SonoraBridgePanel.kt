@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 @Composable
-fun SonoraBridgePanel() {
+fun SonoraBridgePanel(selectedTheme: String, lyricsAnimation: String) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val client = remember { SonoraBridgeClient(context.applicationContext) }
@@ -119,6 +119,10 @@ fun SonoraBridgePanel() {
                 }
             }
         }
+    }
+
+    LaunchedEffect(connected, selectedTheme, lyricsAnimation) {
+        if (connected) client.sendPreferences(selectedTheme, lyricsAnimation)
     }
 
     LaunchedEffect(
@@ -216,7 +220,7 @@ fun SonoraBridgePanel() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF171C26))
+        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
