@@ -18,6 +18,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.BufferedSink
 import org.json.JSONObject
+import org.json.JSONArray
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CountDownLatch
@@ -238,6 +239,69 @@ class SonoraBridgeClient(private val context: Context) {
             if (!response.isSuccessful) throw IOException("Falló la transmisión: HTTP ${response.code}")
         }
         meta
+    }
+
+    fun sendPhonePlaybackState(
+        title: String,
+        artist: String,
+        album: String,
+        playing: Boolean,
+        durationMs: Long,
+        positionMs: Long
+    ): Boolean {
+        val message = JSONObject()
+            .put("type", "metadata")
+            .put("title", title)
+            .put("artist", artist)
+            .put("album", album)
+            .put("playing", playing)
+            .put("durationMs", durationMs)
+            .put("positionMs", positionMs)
+            .put("source", "phone-media-session")
+        return socket?.send(message.toString()) == true
+    }
+
+    suspend fun sendLyricsFile(uri: Uri): Int = withContext(Dispatchers.IO) {
+        val source = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+            ?: throw IOException("No se pudo leer el archivo LRC.")
+        val content = source.removePrefix("\uFEFF")
+        val offset = Regex("(?im)^\\s*\\[offset:([+-]?\\d+)\\]\\s*$")
+            .find(content)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
+        val timestamp = Regex("""\\[(\\d{1,2}):(\\d{2})(?:[.:](\\d{1,3}))?\\]""")
+        val lyricLines = JSONArray()
+        val plainLines = mutableListOf<String>()
+        content.lineSequence().forEach { raw ->
+            val matches = timestamp.findAll(raw).toList()
+            if (matches.isEmpty()) {
+                val trimmed = raw.trim()
+                if (trimmed.isNotEmpty() && !Regex("""^\\[(ti|ar|al|by|re|ve|length):""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
+                    && !Regex("""^\\[offset:""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
+                ) plainLines.add(trimmed)
+            } else {
+                val lyric = raw.substring(matches.last().range.last + 1).trim()
+                if (lyric.isNotEmpty()) {
+                    plainLines.add(lyric)
+                    matches.forEach { match ->
+                        val minutes = match.groupValues[1].toLong()
+                        val seconds = match.groupValues[2].toLong()
+                        val fractionRaw = match.groupValues.getOrNull(3).orEmpty()
+                        val fraction = fractionRaw.padEnd(3, '0').take(3).toLongOrNull() ?: 0L
+                        val startMs = (minutes * 60_000L + seconds * 1_000L + fraction + offset).coerceAtLeast(0L)
+                        lyricLines.put(JSONObject().put("startMs", startMs).put("text", lyric))
+                    }
+                }
+            }
+        }
+        if (plainLines.isEmpty()) throw IOException("El archivo LRC no contiene letras legibles.")
+        val payload = JSONObject()
+            .put("type", "lyrics")
+            .put("format", "lrc")
+            .put("text", plainLines.joinToString("\\n"))
+            .put("lines", lyricLines)
+        if (socket?.send(payload.toString()) != true) {
+            throw IOException("No se pudieron enviar las letras: conexión con SONORA TV perdida.")
+        }
+        lyricLines.length()
     }
 
     fun sendLyrics(text: String): Boolean {
