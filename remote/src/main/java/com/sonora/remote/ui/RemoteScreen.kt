@@ -77,7 +77,6 @@ fun RemoteScreen(
     onOpenMediaAccess: () -> Unit
 ) {
     val ui by SonoraBridge.state.collectAsState()
-    var controlTv by remember(ui.tvConnected) { mutableStateOf(ui.tvConnected) }
 
     Column(
         modifier = Modifier
@@ -89,28 +88,9 @@ fun RemoteScreen(
     ) {
         Header()
         SonoraBridgePanel()
-        if (ui.tvConnected) {
-            OutlinedButton(
-                onClick = onChooseAudio,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Outlined.MusicNote, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Enviar audio del teléfono al TV")
-            }
-        }
         if (!ui.hasMediaAccess) MediaAccessCard(onOpenMediaAccess = onOpenMediaAccess)
-        CurrentTrackCard(ui)
-        ControlSection(
-            state = ui,
-            controlTv = controlTv,
-            onControlTargetChange = { controlTv = it }
-        )
-        VolumeSection(ui, controlTv && ui.tvConnected)
-
         Text(
-            "SONORA · EMPAREJAMIENTO CON SONORA TV",
+            "SONORA · CONTROL REMOTO SINCRONIZADO",
             modifier = Modifier.fillMaxWidth(),
             color = androidx.compose.ui.graphics.Color(0xFF737D8E),
             fontSize = 9.sp,
