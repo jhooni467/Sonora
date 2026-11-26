@@ -18,6 +18,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Check out Sonora TV web source
+        uses: actions/checkout@v7
+        with:
+          repository: jhooni467/Sonora-TV-
+          ref: main
+          path: sonora-tv-source
+
       - name: Set up Java
         uses: actions/setup-java@v6
         with:
@@ -38,6 +45,9 @@ jobs:
         run: |
           yes | sdkmanager --licenses
           sdkmanager --channel=3 "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+
+      - name: Verify bundled TV player is synchronized
+        run: diff -u sonora-tv-source/index.html remote/src/main/assets/sonora-tv/index.html
 
       - name: Validate bundled Sonora TV JavaScript
         run: |
