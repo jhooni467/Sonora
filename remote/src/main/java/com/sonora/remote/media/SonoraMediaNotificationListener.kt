@@ -1,15 +1,34 @@
 package com.sonora.remote.media
 
 import android.content.ComponentName
+import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.sonora.remote.connection.SonoraBridge
 
 class SonoraMediaNotificationListener : NotificationListenerService() {
     private var sessionManager: MediaSessionManager? = null
+    private var activeController: MediaController? = null
+
+    private val controllerCallback = object : MediaController.Callback() {
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            activeController?.let(SonoraBridge::setPhoneController)
+        }
+
+        override fun onPlaybackStateChanged(state: PlaybackState?) {
+            activeController?.let(SonoraBridge::setPhoneController)
+        }
+
+        override fun onSessionDestroyed() {
+            activeController = null
+            refreshSessions()
+        }
+    }
 
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
@@ -26,14 +45,16 @@ class SonoraMediaNotificationListener : NotificationListenerService() {
             )
             refreshSessions()
         } catch (_: SecurityException) {
-            SonoraBridge.setPhoneController(null)
+            clearController()
         }
     }
 
     override fun onListenerDisconnected() {
-        try { sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener) } catch (_: Exception) { }
+        try {
+            sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener)
+        } catch (_: Exception) { }
+        clearController()
         sessionManager = null
-        SonoraBridge.setPhoneController(null)
         super.onListenerDisconnected()
     }
 
@@ -50,19 +71,42 @@ class SonoraMediaNotificationListener : NotificationListenerService() {
             val component = ComponentName(this, SonoraMediaNotificationListener::class.java)
             updateController(sessionManager?.getActiveSessions(component))
         } catch (_: SecurityException) {
-            SonoraBridge.setPhoneController(null)
+            clearController()
         } catch (_: Exception) {
-            SonoraBridge.setPhoneController(null)
+            clearController()
         }
     }
 
     private fun updateController(controllers: List<MediaController>?) {
         val list = controllers.orEmpty()
-        val active = list.firstOrNull {
+        val selected = list.firstOrNull {
             it.playbackState?.state == PlaybackState.STATE_PLAYING
         } ?: list.firstOrNull {
             it.playbackState?.state == PlaybackState.STATE_PAUSED
         } ?: list.firstOrNull()
-        SonoraBridge.setPhoneController(active)
+
+        val current = activeController
+        if (current?.sessionToken == selected?.sessionToken && current != null) {
+            SonoraBridge.setPhoneController(current)
+            return
+        }
+
+        try {
+            current?.unregisterCallback(controllerCallback)
+        } catch (_: Exception) { }
+
+        activeController = selected
+        try {
+            selected?.registerCallback(controllerCallback, Handler(Looper.getMainLooper()))
+        } catch (_: Exception) { }
+        SonoraBridge.setPhoneController(selected)
+    }
+
+    private fun clearController() {
+        try {
+            activeController?.unregisterCallback(controllerCallback)
+        } catch (_: Exception) { }
+        activeController = null
+        SonoraBridge.setPhoneController(null)
     }
 }
