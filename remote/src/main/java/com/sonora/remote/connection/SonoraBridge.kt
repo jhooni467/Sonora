@@ -14,6 +14,7 @@ import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import org.json.JSONObject
+import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.FilterInputStream
 import java.io.IOException
@@ -113,9 +114,7 @@ object SonoraBridge {
 
     fun refreshMediaAccess(context: Context) {
         val enabled = try {
-            android.service.notification.NotificationListenerService::class.java
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-            manager.enabledNotificationListenerPackages.contains(context.packageName)
+            NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
         } catch (_: Exception) {
             false
         }
@@ -322,20 +321,18 @@ object SonoraBridge {
 
     private data class StreamSource(val uri: Uri, val mime: String)
 
-    private inner class Placeholder
-
     private class TvSocketServer : WebSocketServer(InetSocketAddress("0.0.0.0", SOCKET_PORT)) {
         override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
-            onSocketOpen(conn)
+            SonoraBridge.onSocketOpen(conn)
         }
         override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {
-            onSocketClosed(conn)
+            SonoraBridge.onSocketClosed(conn)
         }
         override fun onMessage(conn: WebSocket, message: String) {
-            onSocketMessage(conn, message)
+            SonoraBridge.onSocketMessage(conn, message)
         }
         override fun onError(conn: WebSocket?, ex: Exception) {
-            state.value = state.value.copy(statusMessage = "Error en el enlace del televisor.")
+            SonoraBridge.state.value = SonoraBridge.state.value.copy(statusMessage = "Error en el enlace del televisor.")
         }
         override fun onStart() { }
     }
