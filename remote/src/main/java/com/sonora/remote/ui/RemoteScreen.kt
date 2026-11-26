@@ -109,26 +109,6 @@ fun RemoteScreen(
         )
         VolumeSection(ui, controlTv && ui.tvConnected)
 
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = CardColor)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(Icons.Outlined.Tv, contentDescription = null, tint = Accent, modifier = Modifier.size(18.dp))
-                Text(
-                    text = ui.statusMessage,
-                    color = Muted,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
         Text(
             "SONORA · EMPAREJAMIENTO CON SONORA TV",
             modifier = Modifier.fillMaxWidth(),
