@@ -1,62 +1,66 @@
 # Sonora
 
-Sonora es un sistema de música con un control Android y un reproductor para televisión.
+SONORA combina un control musical Android con SONORA TV, un reproductor web para televisores.
 
-## Aplicaciones
+## Repositorios
 
-- **Sonora Remote** (`:remote`): aplicación Android para leer los metadatos de la sesión multimedia activa del teléfono, controlar esa reproducción o controlar Sonora TV.
-- **Sonora TV web**: reproductor completo mantenido en [jhooni467/Sonora-TV-](https://github.com/jhooni467/Sonora-TV-). También se ejecuta dentro del módulo Android TV.
-- **Sonora TV Android** (`:tv`): aplicación para Android TV / Google TV que abre el reproductor web servido por Sonora Remote.
+- **SONORA Android:** https://github.com/jhooni467/Sonora
+- **SONORA TV Web:** https://github.com/jhooni467/Sonora-TV-
+- **SONORA TV publicada:** https://jhooni467.github.io/Sonora-TV-/
 
-Los repositorios web y Android comparten el mismo archivo de reproductor. La copia que usa el servidor local del teléfono está en `remote/src/main/assets/sonora-tv/index.html`.
+## Emparejamiento Android ↔ TV
 
-## Emparejar SONORA Android con SONORA TV
+**La televisión genera el código; SONORA Android lo introduce.**
 
-El televisor es quien inicia el emparejamiento y muestra el código:
+1. Abre SONORA TV desde el navegador del televisor.
+2. En la TV selecciona **CONECTAR SONORA**. La pantalla de conexión genera un código de seis cifras y un QR.
+3. En Sonora Remote escribe el código mostrado en el televisor y pulsa **Vincular**. El escaneo QR queda disponible como alternativa.
+4. Android lee automáticamente el servidor configurado en el archivo público `bridge-config.json` del repositorio SONORA TV. No se solicita al usuario que escriba una dirección de servidor.
+5. El teléfono y la TV se autentican con el Bridge y abren un canal WebSocket para los controles y el estado de conexión.
 
-1. Abre SONORA TV en el navegador del televisor.
-2. Pulsa **CONECTAR SONORA**. La TV genera y muestra un código de seis cifras y un QR.
-3. En Sonora Remote escribe ese código y pulsa **Vincular**. También puedes escanear el QR como alternativa.
-4. Ambas aplicaciones consultan la misma configuración central `bridge-config.json` del repositorio SONORA TV. No tienes que escribir una dirección de servidor en el teléfono.
-5. Cuando se confirme el canal WebSocket, ambas aplicaciones mostrarán que están conectadas.
+La dirección compartida se obtiene de:
 
-El servidor SONORA Bridge debe estar desplegado por separado de GitHub Pages. Hasta que `bridgeUrl` en `bridge-config.json` tenga la dirección HTTPS real de ese servidor, el emparejamiento mostrará que el servicio todavía no está configurado. Consulta el archivo `PROTOCOL.md` del repositorio SONORA TV para el contrato de comunicación y el proceso de despliegue.
+`https://jhooni467.github.io/Sonora-TV-/bridge-config.json`
 
-## Dos formas de usar la música
+El campo `bridgeUrl` debe contener la dirección HTTPS del Bridge desplegado. Si está vacío, Sonora Remote muestra que el servidor todavía no está configurado.
 
-### Controlar la música que ya está sonando en el teléfono
+## Funciones de Sonora Remote
 
-Sonora Remote puede leer el título, artista y estado de la sesión multimedia activa de Android. Para ello, Android pide habilitar manualmente el acceso de notificaciones multimedia desde el botón **Abrir acceso multimedia**. Los controles de reproducción se envían al reproductor que mantiene esa sesión.
+- Introducir el código de seis cifras generado por la TV.
+- Escanear el QR de SONORA TV.
+- Detectar si la TV está realmente conectada.
+- Reconectar el WebSocket si hay una interrupción de red.
+- Seleccionar una canción desde el teléfono.
+- Leer título, artista, álbum, duración y carátula incrustada.
+- Enviar un archivo completo o transmitir audio mediante SONORA Bridge.
+- Enviar letras manualmente.
+- Enviar controles de anterior, reproducir/pausar y siguiente.
 
-### Enviar un archivo del teléfono a Sonora TV
+La conexión usa HTTPS/WSS a través de SONORA Bridge. El teléfono y la TV no necesitan estar en la misma red local, siempre que ambos tengan acceso a Internet.
 
-Con la TV conectada, pulsa **Enviar audio del teléfono al TV** y elige un archivo de audio. El teléfono lo sirve por la red local y Sonora TV lo reproduce. Mantén Sonora Remote activo mientras la transmisión está en uso; la dirección temporal del archivo depende del servidor del teléfono.
+## SONORA Bridge
 
-Con una TV emparejada puedes elegir el destino de los controles: **TELÉFONO** o **SONORA TV**.
+El servidor Node.js está en el repositorio SONORA TV, dentro de `server/`. GitHub Pages no ejecuta el servidor: debe desplegarse como un servicio independiente (el repositorio incluye `render.yaml`).
 
-## Funciones del reproductor TV
+Pasos para activarlo:
 
-La experiencia web conserva su biblioteca IndexedDB, reproducción de archivos y enlaces directos de audio, portadas, favoritos, cola, aleatorio, repetición, volumen, barra de progreso, reproductor completo y edición de letras. También admite navegación con flechas y selección desde el mando cuando el navegador o WebView entrega esas teclas.
+1. Despliega el Blueprint de SONORA TV en Render.
+2. Copia la dirección HTTPS que Render asigne al servicio.
+3. Actualiza `bridgeUrl` en el archivo `bridge-config.json` de SONORA TV.
+4. Espera a que GitHub Pages publique esa configuración.
+5. Abre SONORA TV y SONORA Remote; ambos leerán automáticamente la misma dirección.
 
-La página pública de GitHub Pages puede seguir funcionando como reproductor independiente. Para emparejarla con Sonora Remote, abre en la TV la dirección HTTP local servida por el teléfono. Los navegadores bloquean el intento de conectar desde una página HTTPS pública hacia un WebSocket local no cifrado.
+Hasta completar estos pasos, el flujo de interfaz está implementado pero el emparejamiento real no puede establecerse porque todavía no hay servidor desplegado.
 
-## Privacidad y requisitos de red
+## Compilación Android
 
-- El teléfono y la TV deben estar en la misma red local y poder comunicarse entre sí.
-- El emparejamiento usa un PIN de seis cifras generado al iniciar el servidor local.
-- El canal local usa HTTP/WebSocket sin cifrado. Úsalo solo en una red privada de confianza; no expongas los puertos 8765 y 8766 a Internet.
-- Si Sonora Remote se cierra o el teléfono deja la red, la TV perderá el enlace y la transmisión de archivos locales se interrumpirá.
-- Los formatos de audio dependen de los códecs admitidos por el navegador o WebView de la TV.
-
-## Compilar
-
-Se requiere JDK 17 y Android SDK 37. El workflow **Android build** compila los módulos `:remote` y `:tv` y publica los APK Debug en el artefacto `sonora-debug-apks`.
+Se requiere JDK 17 y Android SDK 37. El workflow **Android build** compila los módulos `:remote` y `:tv` y publica los APK Debug como artefacto de GitHub Actions.
 
 ## Estructura
 
 ```text
 Sonora/
-├── remote/    # Control Android, sesión multimedia y servidor local
+├── remote/    # Control Android y emparejamiento con SONORA TV
 ├── tv/        # Aplicación Android TV basada en WebView
 └── .github/workflows/android.yml
 ```
