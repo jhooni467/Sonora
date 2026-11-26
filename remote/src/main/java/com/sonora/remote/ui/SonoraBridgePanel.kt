@@ -36,6 +36,7 @@ fun SonoraBridgePanel() {
     var code by remember { mutableStateOf("") }
     var connected by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Conecta tu teléfono con SONORA TV") }
+    var lyrics by remember { mutableStateOf("") }
     var selectedUri by remember { mutableStateOf<android.net.Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
@@ -107,6 +108,19 @@ fun SonoraBridgePanel() {
                 onClick = { picker.launch(arrayOf("audio/*")) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text(selectedUri?.lastPathSegment ?: "Seleccionar canción del teléfono") }
+            OutlinedTextField(
+                value = lyrics,
+                onValueChange = { lyrics = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Letras (opcional)") },
+                minLines = 2,
+                maxLines = 4
+            )
+            OutlinedButton(
+                onClick = { client.sendLyrics(lyrics); status = "Letras enviadas a la TV" },
+                enabled = connected && lyrics.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Enviar letras") }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = {
