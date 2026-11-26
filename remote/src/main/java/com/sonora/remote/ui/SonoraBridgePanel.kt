@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -261,7 +263,12 @@ fun SonoraBridgePanel() {
                         modifier = Modifier.size(76.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF26384A))
-                    ) { Text("♪", modifier = Modifier.padding(22.dp), color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
+                    ) {
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier.fillMaxWidth().padding(18.dp),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) { androidx.compose.material3.Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
+                    }
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(tvTitle, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
