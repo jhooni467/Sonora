@@ -354,14 +354,14 @@ object SonoraBridge {
             }
             if (path.startsWith("/stream/")) {
                 val token = path.removePrefix("/stream/")
-                val source = streams[token]
+                val source = SonoraBridge.streams[token]
                     ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Audio no encontrado.")
                 return streamResponse(session, source)
             }
             return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Ruta no encontrada.")
         }
 
-        private fun streamResponse(session: IHTTPSession, source: StreamSource): Response {
+        private fun streamResponse(session: IHTTPSession, source: SonoraBridge.StreamSource): Response {
             val resolver = context.contentResolver
             val descriptor = resolver.openAssetFileDescriptor(source.uri, "r")
                 ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Archivo no disponible.")
