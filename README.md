@@ -10,15 +10,17 @@ Sonora es un sistema de música con un control Android y un reproductor para tel
 
 Los repositorios web y Android comparten el mismo archivo de reproductor. La copia que usa el servidor local del teléfono está en `remote/src/main/assets/sonora-tv/index.html`.
 
-## Emparejar el teléfono y la TV
+## Emparejar SONORA Android con SONORA TV
 
-1. Instala y abre **Sonora Remote** en el teléfono.
-2. Conecta el teléfono y la TV a la misma red Wi‑Fi.
-3. En Sonora Remote pulsa **Conectar**. La app muestra la dirección local, un código QR y un PIN de seis cifras.
-4. En la aplicación Android TV introduce la dirección IPv4 y el PIN. Si usas un navegador de TV, abre la dirección local que muestra el teléfono; el PIN incluido en el QR se valida automáticamente. También puedes escribirlo manualmente en el diálogo de conexión de la página.
-5. Cuando el estado cambie a **TV conectada**, el teléfono podrá enviar controles y archivos de audio.
+El televisor es quien inicia el emparejamiento y muestra el código:
 
-La conexión local utiliza HTTP en el puerto **8765** para servir el reproductor y WebSocket en el puerto **8766** para emparejamiento, estado y comandos.
+1. Abre SONORA TV en el navegador del televisor.
+2. Pulsa **CONECTAR SONORA**. La TV genera y muestra un código de seis cifras y un QR.
+3. En Sonora Remote escribe ese código y pulsa **Vincular**. También puedes escanear el QR como alternativa.
+4. Ambas aplicaciones consultan la misma configuración central `bridge-config.json` del repositorio SONORA TV. No tienes que escribir una dirección de servidor en el teléfono.
+5. Cuando se confirme el canal WebSocket, ambas aplicaciones mostrarán que están conectadas.
+
+El servidor SONORA Bridge debe estar desplegado por separado de GitHub Pages. Hasta que `bridgeUrl` en `bridge-config.json` tenga la dirección HTTPS real de ese servidor, el emparejamiento mostrará que el servicio todavía no está configurado. Consulta el archivo `PROTOCOL.md` del repositorio SONORA TV para el contrato de comunicación y el proceso de despliegue.
 
 ## Dos formas de usar la música
 
