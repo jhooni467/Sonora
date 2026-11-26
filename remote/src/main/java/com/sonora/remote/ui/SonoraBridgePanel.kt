@@ -62,6 +62,8 @@ fun SonoraBridgePanel() {
     var tvPositionMs by remember { mutableStateOf(0L) }
     var tvVolume by remember { mutableStateOf(1f) }
     var lrcStatus by remember { mutableStateOf("Sin archivo LRC cargado") }
+    var selectedLrcUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedLrcName by remember { mutableStateOf("") }
 
     SideEffect {
         client.onConnectionChanged = { isConnected, message ->
@@ -161,14 +163,15 @@ fun SonoraBridgePanel() {
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            scope.launch {
-                try {
-                    val count = client.sendLyricsFile(uri)
-                    lrcStatus = "LRC enviado · $count líneas sincronizadas"
-                    status = "Letras sincronizadas enviadas a SONORA TV"
-                } catch (error: Exception) {
-                    lrcStatus = error.message ?: "No se pudo leer el archivo LRC"
-                }
+            val name = client.displayName(uri)
+            if (name.endsWith(".lrc", ignoreCase = true)) {
+                selectedLrcUri = uri
+                selectedLrcName = name
+                lrcStatus = "Seleccionado: $name"
+            } else {
+                selectedLrcUri = null
+                selectedLrcName = ""
+                lrcStatus = "Ese archivo no es .LRC. Elige un archivo de letras LRC."
             }
         }
     }
@@ -357,11 +360,26 @@ fun SonoraBridgePanel() {
                 ) { Text("Transmitir") }
             }
             OutlinedButton(
-                onClick = { lrcPicker.launch(arrayOf("text/plain", "application/octet-stream")) },
-                enabled = connected,
+                onClick = { lrcPicker.launch(arrayOf("*/*")) },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Importar archivo de letras .LRC") }
+            ) { Text(if (selectedLrcName.isBlank()) "Seleccionar archivo de letras .LRC" else "Cambiar archivo: $selectedLrcName") }
             Text(lrcStatus, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(
+                onClick = {
+                    val uri = selectedLrcUri ?: return@Button
+                    scope.launch {
+                        try {
+                            val count = client.sendLyricsFile(uri)
+                            lrcStatus = "LRC enviado · $count líneas sincronizadas"
+                            status = "Letras sincronizadas enviadas a SONORA TV"
+                        } catch (error: Exception) {
+                            lrcStatus = error.message ?: "No se pudo enviar el archivo LRC"
+                        }
+                    }
+                },
+                enabled = connected && selectedLrcUri != null,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Enviar letras a SONORA TV") }
             OutlinedTextField(
                 value = lyrics,
                 onValueChange = { lyrics = it },
