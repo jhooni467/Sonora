@@ -39,6 +39,22 @@ jobs:
           yes | sdkmanager --licenses
           sdkmanager --channel=3 "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
 
+      - name: Validate bundled Sonora TV JavaScript
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          html_path = Path("remote/src/main/assets/sonora-tv/index.html")
+          html = html_path.read_text(encoding="utf-8")
+          scripts = re.findall(r"<script\\b[^>]*>(.*?)</script>", html, flags=re.IGNORECASE | re.DOTALL)
+          if not scripts:
+              raise SystemExit("No se encontró JavaScript en el reproductor Sonora TV.")
+          Path("/tmp/sonora-tv.js").write_text("\\n".join(scripts), encoding="utf-8")
+          print(f"JavaScript extraído de {html_path}: {len(scripts)} bloque(s)")
+          PY
+          node --check /tmp/sonora-tv.js
+
       - name: Build debug APKs
         run: gradle --no-daemon :remote:assembleDebug :tv:assembleDebug
 
