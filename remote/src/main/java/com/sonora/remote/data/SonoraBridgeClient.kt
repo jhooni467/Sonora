@@ -247,7 +247,8 @@ class SonoraBridgeClient(private val context: Context) {
         album: String,
         playing: Boolean,
         durationMs: Long,
-        positionMs: Long
+        positionMs: Long,
+        artworkDataUrl: String? = null
     ): Boolean {
         val message = JSONObject()
             .put("type", "metadata")
@@ -258,6 +259,7 @@ class SonoraBridgeClient(private val context: Context) {
             .put("durationMs", durationMs)
             .put("positionMs", positionMs)
             .put("source", "phone-media-session")
+        artworkDataUrl?.let { message.put("artworkDataUrl", it) }
         return socket?.send(message.toString()) == true
     }
 
