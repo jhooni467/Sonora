@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sonora.remote.ui.SonoraBridgePanel
 
 private val previewTracks = listOf(
     "Luz de medianoche",
@@ -140,6 +141,8 @@ fun RemoteScreen() {
                 }
             }
         }
+
+        SonoraBridgePanel()
 
         Card(
             modifier = Modifier.fillMaxWidth(),
