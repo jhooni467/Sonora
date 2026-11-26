@@ -155,6 +155,11 @@ class SonoraBridgeClient(private val context: Context) {
         meta
     }
 
+    fun sendLyrics(text: String) {
+        val message = JSONObject().put("type", "lyrics").put("text", text)
+        socket?.send(message.toString())
+    }
+
     private fun sendMetadata(meta: SonoraTrackMetadata) {
         val message = JSONObject().put("type", "metadata")
             .put("title", meta.title).put("artist", meta.artist).put("album", meta.album)
