@@ -83,7 +83,6 @@ class SonoraBridgeClient(private val context: Context) {
         }
 
     private fun openSocket(waitForOpen: Boolean = true) {
-        if (socket?.let { it.request() != null } == true) { /* Socket lifecycle is managed by OkHttp callbacks. */ }
         if (socket != null) return
         val currentToken = token ?: throw IOException("No se recibió el token de emparejamiento.")
         val wsUrl = baseUrl.replaceFirst("https://", "wss://")
@@ -138,6 +137,7 @@ class SonoraBridgeClient(private val context: Context) {
         val delaySeconds = (1L shl reconnectAttempt.coerceAtMost(4)).coerceAtMost(15L)
         reconnectAttempt = (reconnectAttempt + 1).coerceAtMost(4)
         reconnectFuture = reconnectExecutor.schedule({
+            reconnectFuture = null
             if (!intentionalDisconnect && token != null && socket == null) {
                 try {
                     openSocket(waitForOpen = false)
