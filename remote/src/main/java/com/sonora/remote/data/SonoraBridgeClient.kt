@@ -201,6 +201,11 @@ class SonoraBridgeClient(private val context: Context) {
         }
     }
 
+    private fun utf8Header(value: String): String =
+        Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+
+    fun displayName(uri: Uri): String = displayName(context.contentResolver, uri)
+
     suspend fun shareFile(uri: Uri): SonoraTrackMetadata = withContext(Dispatchers.IO) {
         val meta = readMetadata(uri)
         sendMetadata(meta)
@@ -208,7 +213,7 @@ class SonoraBridgeClient(private val context: Context) {
         val body = uriBody(uri, meta.mimeType)
         val request = Request.Builder().url("$baseUrl/api/upload")
             .header("Authorization", "Bearer $currentToken")
-            .header("X-File-Name", meta.fileName)
+            .header("X-File-Name-B64", utf8Header(meta.fileName))
             .post(body).build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("No se pudo enviar el archivo: HTTP ${response.code}")
@@ -223,8 +228,8 @@ class SonoraBridgeClient(private val context: Context) {
         val sessionBody = JSONObject().toString().toRequestBody("application/json".toMediaTypeOrNull())
         val sessionRequest = Request.Builder().url("$baseUrl/api/stream/session")
             .header("Authorization", "Bearer $currentToken")
-            .header("X-Track-Title", meta.title)
-            .header("X-Track-Artist", meta.artist)
+            .header("X-Track-Title-B64", utf8Header(meta.title))
+            .header("X-Track-Artist-B64", utf8Header(meta.artist))
             .header("Content-Type", meta.mimeType)
             .post(sessionBody).build()
         val uploadUrl = http.newCall(sessionRequest).execute().use { response ->
@@ -264,32 +269,55 @@ class SonoraBridgeClient(private val context: Context) {
     }
 
     suspend fun sendLyricsFile(uri: Uri): Int = withContext(Dispatchers.IO) {
+        val fileName = displayName(uri)
+        if (!fileName.endsWith(".lrc", ignoreCase = true)) {
+            throw IOException("Selecciona un archivo con extensión .lrc.")
+        }
         val source = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
             ?: throw IOException("No se pudo leer el archivo LRC.")
         val content = source.removePrefix("\uFEFF")
         val offset = Regex("(?im)^\\s*\\[offset:([+-]?\\d+)\\]\\s*$")
             .find(content)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
         val timestamp = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]""")
+        val wordTimestamp = Regex("""<(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?>""")
+        fun toMs(match: MatchResult): Long {
+            val minutes = match.groupValues[1].toLong()
+            val seconds = match.groupValues[2].toLong()
+            val fraction = match.groupValues.getOrNull(3).orEmpty().padEnd(3, '0').take(3).toLongOrNull() ?: 0L
+            return (minutes * 60_000L + seconds * 1_000L + fraction + offset).coerceAtLeast(0L)
+        }
         val lyricLines = JSONArray()
         val plainLines = mutableListOf<String>()
         content.lineSequence().forEach { raw ->
             val matches = timestamp.findAll(raw).toList()
             if (matches.isEmpty()) {
                 val trimmed = raw.trim()
-                if (trimmed.isNotEmpty() && !Regex("""^\[(ti|ar|al|by|re|ve|length):""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
-                    && !Regex("""^\[offset:""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
+                if (trimmed.isNotEmpty() &&
+                    !Regex("""^\[(ti|ar|al|by|re|ve|length|offset):""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
                 ) plainLines.add(trimmed)
             } else {
-                val lyric = raw.substring(matches.last().range.last + 1).trim()
-                if (lyric.isNotEmpty()) {
-                    plainLines.add(lyric)
+                val rawLyric = raw.substring(matches.last().range.last + 1).trim()
+                if (rawLyric.isNotEmpty()) {
+                    val wordMatches = wordTimestamp.findAll(rawLyric).toList()
+                    val words = JSONArray()
+                    val visibleText = if (wordMatches.isEmpty()) rawLyric else {
+                        val assembled = StringBuilder()
+                        wordMatches.forEachIndexed { index, wordMatch ->
+                            val segmentStart = wordMatch.range.last + 1
+                            val segmentEnd = wordMatches.getOrNull(index + 1)?.range?.first ?: rawLyric.length
+                            val wordText = rawLyric.substring(segmentStart, segmentEnd)
+                            if (wordText.isNotEmpty()) {
+                                assembled.append(wordText)
+                                words.put(JSONObject().put("startMs", toMs(wordMatch)).put("text", wordText))
+                            }
+                        }
+                        assembled.toString().ifBlank { rawLyric.replace(wordTimestamp, "") }
+                    }
+                    plainLines.add(visibleText)
                     matches.forEach { match ->
-                        val minutes = match.groupValues[1].toLong()
-                        val seconds = match.groupValues[2].toLong()
-                        val fractionRaw = match.groupValues.getOrNull(3).orEmpty()
-                        val fraction = fractionRaw.padEnd(3, '0').take(3).toLongOrNull() ?: 0L
-                        val startMs = (minutes * 60_000L + seconds * 1_000L + fraction + offset).coerceAtLeast(0L)
-                        lyricLines.put(JSONObject().put("startMs", startMs).put("text", lyric))
+                        val line = JSONObject().put("startMs", toMs(match)).put("text", visibleText)
+                        if (words.length() > 0) line.put("words", words)
+                        lyricLines.put(line)
                     }
                 }
             }
