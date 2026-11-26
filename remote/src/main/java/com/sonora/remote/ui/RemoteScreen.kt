@@ -67,26 +67,9 @@ private val previewTracks = listOf(
 
 @Composable
 fun RemoteScreen() {
-    var connected by remember { mutableStateOf(false) }
-    var showConnectionInfo by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var trackIndex by remember { mutableIntStateOf(0) }
     var volume by remember { mutableFloatStateOf(0.55f) }
-
-    if (showConnectionInfo) {
-        AlertDialog(
-            onDismissRequest = { showConnectionInfo = false },
-            title = { Text("Conectar con Sonora TV") },
-            text = {
-                Text("El emparejamiento entre el celular y el televisor se habilitará en la siguiente etapa.")
-            },
-            confirmButton = {
-                TextButton(onClick = { showConnectionInfo = false }) {
-                    Text("Entendido")
-                }
-            }
-        )
-    }
 
     Column(
         modifier = Modifier
@@ -143,46 +126,6 @@ fun RemoteScreen() {
         }
 
         SonoraBridgePanel()
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF171C26))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(Color(0xFF252D3B)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Tv,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(25.dp)
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Televisor", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (connected) "Sonora TV" else "Ningún dispositivo vinculado",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
-                }
-                Button(onClick = { showConnectionInfo = true }) {
-                    Text("Conectar")
-                }
-            }
-        }
 
         Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
             Text(
@@ -322,7 +265,7 @@ fun RemoteScreen() {
         }
 
         Text(
-            "CONTROLES DE VISTA PREVIA · SIN CONEXIÓN A TV",
+            "CONTROLES DE DEMOSTRACIÓN",
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
