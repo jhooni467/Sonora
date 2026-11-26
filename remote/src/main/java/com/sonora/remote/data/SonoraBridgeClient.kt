@@ -267,15 +267,15 @@ class SonoraBridgeClient(private val context: Context) {
         val content = source.removePrefix("\uFEFF")
         val offset = Regex("(?im)^\\s*\\[offset:([+-]?\\d+)\\]\\s*$")
             .find(content)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
-        val timestamp = Regex("""\\[(\\d{1,2}):(\\d{2})(?:[.:](\\d{1,3}))?\\]""")
+        val timestamp = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]""")
         val lyricLines = JSONArray()
         val plainLines = mutableListOf<String>()
         content.lineSequence().forEach { raw ->
             val matches = timestamp.findAll(raw).toList()
             if (matches.isEmpty()) {
                 val trimmed = raw.trim()
-                if (trimmed.isNotEmpty() && !Regex("""^\\[(ti|ar|al|by|re|ve|length):""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
-                    && !Regex("""^\\[offset:""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
+                if (trimmed.isNotEmpty() && !Regex("""^\[(ti|ar|al|by|re|ve|length):""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
+                    && !Regex("""^\[offset:""", RegexOption.IGNORE_CASE).containsMatchIn(trimmed)
                 ) plainLines.add(trimmed)
             } else {
                 val lyric = raw.substring(matches.last().range.last + 1).trim()
@@ -296,7 +296,7 @@ class SonoraBridgeClient(private val context: Context) {
         val payload = JSONObject()
             .put("type", "lyrics")
             .put("format", "lrc")
-            .put("text", plainLines.joinToString("\\n"))
+            .put("text", plainLines.joinToString("\n"))
             .put("lines", lyricLines)
         if (socket?.send(payload.toString()) != true) {
             throw IOException("No se pudieron enviar las letras: conexión con SONORA TV perdida.")
