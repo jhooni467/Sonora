@@ -1,6 +1,9 @@
 package com.sonora.remote.ui
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.journeyapps.barcodescanner.ScanContract
@@ -46,6 +53,8 @@ fun SonoraBridgePanel() {
     var selectedUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var tvTitle by remember { mutableStateOf("Esperando música") }
     var tvArtist by remember { mutableStateOf("SONORA TV") }
+    var tvAlbum by remember { mutableStateOf("") }
+    var tvArtworkDataUrl by remember { mutableStateOf("") }
     var tvPlaying by remember { mutableStateOf(false) }
     var tvDurationMs by remember { mutableStateOf(0L) }
     var tvPositionMs by remember { mutableStateOf(0L) }
@@ -72,6 +81,8 @@ fun SonoraBridgePanel() {
                     scope.launch {
                         tvTitle = message.optString("title", tvTitle)
                         tvArtist = message.optString("artist", tvArtist)
+                        tvAlbum = message.optString("album", tvAlbum)
+                        tvArtworkDataUrl = message.optString("artworkDataUrl", tvArtworkDataUrl)
                         tvPlaying = message.optBoolean("playing", tvPlaying)
                         tvDurationMs = message.optLong("durationMs", tvDurationMs)
                         tvPositionMs = message.optLong("positionMs", tvPositionMs)
@@ -82,6 +93,8 @@ fun SonoraBridgePanel() {
                     scope.launch {
                         tvTitle = message.optString("title", tvTitle)
                         tvArtist = message.optString("artist", tvArtist)
+                        tvAlbum = message.optString("album", tvAlbum)
+                        tvArtworkDataUrl = message.optString("artworkDataUrl", tvArtworkDataUrl)
                     }
                 }
                 "phone-command" -> {
@@ -126,6 +139,16 @@ fun SonoraBridgePanel() {
                 artworkDataUrl = phoneState.phoneArtworkDataUrl
             )
         }
+    }
+
+    val tvArtwork = remember(tvArtworkDataUrl) {
+        runCatching {
+            val encoded = tvArtworkDataUrl.substringAfter("base64,", "")
+            if (encoded.isBlank()) null else {
+                val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }
+        }.getOrNull()
     }
 
     val audioPicker = rememberLauncherForActivityResult(
@@ -226,9 +249,28 @@ fun SonoraBridgePanel() {
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("REPRODUCCIÓN EN SONORA TV", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
-            Text(tvTitle, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-            Text(tvArtist, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(if (tvPlaying) "Reproduciendo" else "En pausa", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                if (tvArtwork != null) {
+                    Image(
+                        bitmap = tvArtwork.asImageBitmap(),
+                        contentDescription = "Portada de $tvTitle",
+                        modifier = Modifier.size(76.dp).clip(RoundedCornerShape(14.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Card(
+                        modifier = Modifier.size(76.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF26384A))
+                    ) { Text("♪", modifier = Modifier.padding(22.dp), color = androidx.compose.material3.MaterialTheme.colorScheme.primary) }
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(tvTitle, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                    Text(tvArtist, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (tvAlbum.isNotBlank()) Text(tvAlbum, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                    Text(if (tvPlaying) "Reproduciendo" else "En pausa", color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                }
+            }
             Slider(
                 value = if (tvDurationMs > 0) (tvPositionMs.toFloat() / tvDurationMs).coerceIn(0f, 1f) else 0f,
                 onValueChange = { fraction ->
