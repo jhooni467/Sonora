@@ -14,6 +14,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,21 +39,47 @@ fun SonoraBridgePanel() {
     var status by remember { mutableStateOf("Conecta tu teléfono con SONORA TV") }
     var lyrics by remember { mutableStateOf("") }
     var selectedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    SideEffect {
+        client.onConnectionChanged = { isConnected, message ->
+            scope.launch {
+                if (!isConnected) connected = false
+                status = message
+            }
+        }
+        client.onIncomingMessage = { message ->
+            if (message.optString("type") == "peer-status" && message.optString("role") == "tv") {
+                val tvOnline = message.optBoolean("connected")
+                scope.launch {
+                    connected = tvOnline
+                    status = if (tvOnline) "Conectado con SONORA TV" else "Teléfono vinculado · esperando que la TV se conecte"
+                }
+            }
+        }
+    }
     val picker = rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> selectedUri = uri }
     fun pair(scanned: String? = null) {
-        val raw = scanned ?: ""
-        val parts = raw.split("|", limit = 2)
-        if (parts.size == 2) {
+        if (scanned != null) {
+            val parts = scanned.trim().split("|", limit = 2)
+            if (parts.size != 2) {
+                status = "El QR no contiene un código SONORA válido."
+                return
+            }
             server = parts[0]
             code = parts[1].filter(Char::isDigit).take(6)
         }
+        if (code.length != 6) {
+            status = "Introduce el código de seis dígitos."
+            return
+        }
+        connected = false
+        status = "Vinculando con SONORA TV…"
         scope.launch {
             try {
                 client.pair(server, code)
-                connected = true
-                status = "Conectado con SONORA TV"
+                status = "Servidor conectado · comprobando televisión…"
             } catch (error: Exception) {
                 connected = false
                 status = error.message ?: "No se pudo conectar"
@@ -98,11 +125,16 @@ fun SonoraBridgePanel() {
                             .setOrientationLocked(false)
                     )
                 }) { Text("Escanear QR") }
+                OutlinedButton(onClick = {
+                    client.disconnect()
+                    connected = false
+                    status = "Desconectado de SONORA TV"
+                }) { Text("Desconectar") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = { client.sendControl("previous") }, enabled = connected) { Text("Anterior") }
-                Button(onClick = { client.sendControl("toggle") }, enabled = connected) { Text("Reproducir / Pausar") }
-                OutlinedButton(onClick = { client.sendControl("next") }, enabled = connected) { Text("Siguiente") }
+                OutlinedButton(onClick = { if (!client.sendControl("previous")) status = "No hay conexión con la TV." }, enabled = connected) { Text("Anterior") }
+                Button(onClick = { if (!client.sendControl("toggle")) status = "No hay conexión con la TV." }, enabled = connected) { Text("Reproducir / Pausar") }
+                OutlinedButton(onClick = { if (!client.sendControl("next")) status = "No hay conexión con la TV." }, enabled = connected) { Text("Siguiente") }
             }
             OutlinedButton(
                 onClick = { picker.launch(arrayOf("audio/*")) },
@@ -117,7 +149,7 @@ fun SonoraBridgePanel() {
                 maxLines = 4
             )
             OutlinedButton(
-                onClick = { client.sendLyrics(lyrics); status = "Letras enviadas a la TV" },
+                onClick = { status = if (client.sendLyrics(lyrics)) "Letras enviadas a la TV" else "No se pudieron enviar las letras: conexión perdida." },
                 enabled = connected && lyrics.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Enviar letras") }
