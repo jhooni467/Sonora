@@ -50,7 +50,7 @@ jobs:
           scripts = re.findall(r"<script\b[^>]*>(.*?)</script>", html, flags=re.IGNORECASE | re.DOTALL)
           if not scripts:
               raise SystemExit("No se encontró JavaScript en el reproductor Sonora TV.")
-          Path("/tmp/sonora-tv.js").write_text("\\n".join(scripts), encoding="utf-8")
+          Path("/tmp/sonora-tv.js").write_text("\n".join(scripts), encoding="utf-8")
           print(f"JavaScript extraído de {html_path}: {len(scripts)} bloque(s)")
           PY
           node --check /tmp/sonora-tv.js
