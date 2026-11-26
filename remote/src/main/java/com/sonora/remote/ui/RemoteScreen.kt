@@ -66,28 +66,47 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.sonora.remote.connection.RemoteUiState
 import com.sonora.remote.connection.SonoraBridge
 
-private val Background = androidx.compose.ui.graphics.Color(0xFF090B10)
-private val CardColor = androidx.compose.ui.graphics.Color(0xFF171C26)
-private val Accent = androidx.compose.ui.graphics.Color(0xFFFFB86B)
-private val Muted = androidx.compose.ui.graphics.Color(0xFFB9C0CC)
+private val ThemeOptions = listOf(
+    "original" to "Original",
+    "aurora" to "Aurora",
+    "ocean" to "Océano",
+    "sunset" to "Atardecer",
+    "forest" to "Bosque",
+    "rose" to "Rosa"
+)
+private val LyricsAnimationOptions = listOf(
+    "actual" to "Actual",
+    "recorrer" to "Recorrer",
+    "fluida" to "Fluida"
+)
 
 @Composable
 fun RemoteScreen(
     onChooseAudio: () -> Unit,
-    onOpenMediaAccess: () -> Unit
+    onOpenMediaAccess: () -> Unit,
+    selectedTheme: String,
+    onThemeChange: (String) -> Unit,
+    lyricsAnimation: String,
+    onLyricsAnimationChange: (String) -> Unit
 ) {
     val ui by SonoraBridge.state.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(19.dp)
     ) {
         Header()
-        SonoraBridgePanel()
+        SonoraBridgePanel(selectedTheme = selectedTheme, lyricsAnimation = lyricsAnimation)
+        PersonalizationCard(
+            selectedTheme = selectedTheme,
+            onThemeChange = onThemeChange,
+            lyricsAnimation = lyricsAnimation,
+            onLyricsAnimationChange = onLyricsAnimationChange
+        )
         if (!ui.hasMediaAccess) MediaAccessCard(onOpenMediaAccess = onOpenMediaAccess)
         Text(
             "SONORA · CONTROL REMOTO SINCRONIZADO",
@@ -96,6 +115,72 @@ fun RemoteScreen(
             fontSize = 9.sp,
             letterSpacing = 1.5.sp
         )
+    }
+}
+
+
+@Composable
+private fun PersonalizationCard(
+    selectedTheme: String,
+    onThemeChange: (String) -> Unit,
+    lyricsAnimation: String,
+    onLyricsAnimationChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp)
+        ) {
+            Text("AJUSTES · PERSONALIZACIÓN", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text("TEMAS DE COLOR", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, letterSpacing = 1.2.sp)
+            ThemeOptions.chunked(3).forEach { group ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    group.forEach { (id, title) ->
+                        if (selectedTheme == id) {
+                            Button(
+                                onClick = { onThemeChange(id) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text(title, maxLines = 1) }
+                        } else {
+                            OutlinedButton(
+                                onClick = { onThemeChange(id) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text(title, maxLines = 1) }
+                        }
+                    }
+                }
+            }
+            Text("ANIMACIÓN DE LETRAS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, letterSpacing = 1.2.sp)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                LyricsAnimationOptions.forEach { (id, title) ->
+                    if (lyricsAnimation == id) {
+                        Button(
+                            onClick = { onLyricsAnimationChange(id) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(title, maxLines = 1) }
+                    } else {
+                        OutlinedButton(
+                            onClick = { onLyricsAnimationChange(id) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(title, maxLines = 1) }
+                    }
+                }
+            }
+            Text(
+                "La TV adopta el tema y la animación elegidos mientras el teléfono esté conectado.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+        }
     }
 }
 
@@ -108,7 +193,7 @@ private fun Header() {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("SONORA", color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-            Text("CONTROL UNIVERSAL", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+            Text("CONTROL UNIVERSAL", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 2.sp)
         }
         Surface(
             shape = CircleShape,
@@ -119,7 +204,7 @@ private fun Header() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Icon(Icons.Outlined.Tv, contentDescription = null, tint = Accent, modifier = Modifier.size(16.dp))
+                Icon(Icons.Outlined.Tv, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                 Text("CÓDIGO DE TV", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
         }
@@ -128,7 +213,7 @@ private fun Header() {
 
 @Composable
 private fun ConnectionCard(state: RemoteUiState, onPair: () -> Unit, onChooseAudio: () -> Unit) {
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = CardColor)) {
+    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
