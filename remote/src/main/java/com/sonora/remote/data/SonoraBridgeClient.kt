@@ -22,6 +22,8 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
 
 data class SonoraTrackMetadata(
     val title: String,
@@ -47,6 +49,10 @@ class SonoraBridgeClient(private val context: Context) {
     @Volatile private var token: String? = null
     @Volatile private var baseUrl: String = ""
     private val pendingMessages = java.util.concurrent.CopyOnWriteArrayList<String>()
+    private val reconnectExecutor = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "sonora-tv-reconnect").apply { isDaemon = true } }
+    @Volatile private var intentionalDisconnect = false
+    @Volatile private var reconnectAttempt = 0
+    @Volatile private var reconnectFuture: ScheduledFuture<*>? = null
     @Volatile var onConnectionChanged: ((Boolean, String) -> Unit)? = null
     @Volatile var onIncomingMessage: ((JSONObject) -> Unit)? = null
 
@@ -54,9 +60,14 @@ class SonoraBridgeClient(private val context: Context) {
         withContext(Dispatchers.IO) {
             val base = normalize(serverUrl)
             require(sixDigitCode.matches(Regex("\\d{6}"))) { "El código debe tener seis dígitos." }
+            intentionalDisconnect = true
+            reconnectFuture?.cancel(false)
+            reconnectFuture = null
             socket?.close(1000, "New pairing attempt")
             socket = null
             token = null
+            intentionalDisconnect = false
+            reconnectAttempt = 0
             onConnectionChanged?.invoke(false, "Vinculando con SONORA TV…")
             val payload = JSONObject().put("code", sixDigitCode).put("deviceName", deviceName)
                 .toString().toRequestBody("application/json".toMediaTypeOrNull())
@@ -71,7 +82,9 @@ class SonoraBridgeClient(private val context: Context) {
             true
         }
 
-    private fun openSocket() {
+    private fun openSocket(waitForOpen: Boolean = true) {
+        if (socket?.let { it.request() != null } == true) { /* Socket lifecycle is managed by OkHttp callbacks. */ }
+        if (socket != null) return
         val currentToken = token ?: throw IOException("No se recibió el token de emparejamiento.")
         val wsUrl = baseUrl.replaceFirst("https://", "wss://")
             .replaceFirst("http://", "ws://") + "/ws?token=$currentToken"
@@ -82,7 +95,9 @@ class SonoraBridgeClient(private val context: Context) {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 pendingMessages.forEach { webSocket.send(it) }
                 pendingMessages.clear()
-                onConnectionChanged?.invoke(true, "Conectado con SONORA TV")
+                reconnectAttempt = 0
+                reconnectFuture = null
+                onConnectionChanged?.invoke(true, "Canal seguro conectado con SONORA TV")
                 opened.countDown()
             }
 
@@ -97,6 +112,7 @@ class SonoraBridgeClient(private val context: Context) {
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 if (socket === webSocket) socket = null
                 onConnectionChanged?.invoke(false, "Conexión cerrada con SONORA TV")
+                if (!intentionalDisconnect && code != 4001 && code != 4002) scheduleReconnect()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -104,14 +120,33 @@ class SonoraBridgeClient(private val context: Context) {
                 if (socket === webSocket) socket = null
                 onConnectionChanged?.invoke(false, "Conexión perdida: ${t.message ?: "error de red"}")
                 opened.countDown()
+                if (!intentionalDisconnect) scheduleReconnect()
             }
         })
-        if (!opened.await(12, TimeUnit.SECONDS)) {
-            socket?.cancel()
-            socket = null
-            throw IOException("Tiempo agotado al abrir el canal de control.")
+        if (waitForOpen) {
+            if (!opened.await(12, TimeUnit.SECONDS)) {
+                socket?.cancel()
+                socket = null
+                throw IOException("Tiempo agotado al abrir el canal de control.")
+            }
+            failure.get()?.let { throw IOException("No se pudo abrir el canal WebSocket: ${it.message}", it) }
         }
-        failure.get()?.let { throw IOException("No se pudo abrir el canal WebSocket: ${it.message}", it) }
+    }
+
+    private fun scheduleReconnect() {
+        if (intentionalDisconnect || token == null || reconnectFuture?.isDone == false) return
+        val delaySeconds = (1L shl reconnectAttempt.coerceAtMost(4)).coerceAtMost(15L)
+        reconnectAttempt = (reconnectAttempt + 1).coerceAtMost(4)
+        reconnectFuture = reconnectExecutor.schedule({
+            if (!intentionalDisconnect && token != null && socket == null) {
+                try {
+                    openSocket(waitForOpen = false)
+                } catch (error: Exception) {
+                    onConnectionChanged?.invoke(false, "No se pudo recuperar la conexión: ${error.message}")
+                    scheduleReconnect()
+                }
+            }
+        }, delaySeconds, TimeUnit.SECONDS)
     }
 
     fun sendControl(type: String, value: Double? = null): Boolean {
@@ -229,6 +264,9 @@ class SonoraBridgeClient(private val context: Context) {
     }
 
     fun disconnect() {
+        intentionalDisconnect = true
+        reconnectFuture?.cancel(false)
+        reconnectFuture = null
         socket?.close(1000, "SONORA disconnected")
         socket = null
         token = null
