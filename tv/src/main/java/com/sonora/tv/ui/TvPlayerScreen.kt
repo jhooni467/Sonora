@@ -1,180 +1,235 @@
 package com.sonora.tv.ui
 
+import android.graphics.Color as AndroidColor
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Album
 import androidx.compose.material.icons.outlined.Cast
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Pause
-import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.QueueMusic
-import androidx.compose.material.icons.outlined.SkipNext
-import androidx.compose.material.icons.outlined.SkipPrevious
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+
+private val TvBackground = androidx.compose.ui.graphics.Color(0xFF090B10)
+private val TvPanel = androidx.compose.ui.graphics.Color(0xFF171C26)
+private val TvAccent = androidx.compose.ui.graphics.Color(0xFFFFB86B)
+private val TvMuted = androidx.compose.ui.graphics.Color(0xFFB9C0CC)
 
 @Composable
 fun TvPlayerScreen() {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF080A0F)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF111827), Color(0xFF080A0F), Color(0xFF090B10))
-                    )
-                )
-                .padding(horizontal = 58.dp, vertical = 38.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.MusicNote,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(26.dp)
-                    )
-                    Text(
-                        "SONORA",
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontSize = 21.sp,
-                        letterSpacing = 5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(9.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Cast,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(19.dp)
-                    )
-                    Text(
-                        "ESPERANDO CONEXIÓN",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp,
-                        letterSpacing = 2.sp
-                    )
-                }
+    var phoneHost by remember { mutableStateOf("") }
+    var pairingPin by remember { mutableStateOf("") }
+    var playerUrl by remember { mutableStateOf("") }
+    var connectionError by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var activeWebView by remember { mutableStateOf<WebView?>(null) }
+
+    BackHandler(enabled = playerUrl.isNotBlank()) {
+        playerUrl = ""
+        loading = false
+        connectionError = ""
+    }
+
+    DisposableEffect(playerUrl) {
+        onDispose {
+            activeWebView?.let { webView ->
+                try {
+                    webView.stopLoading()
+                    webView.loadUrl("about:blank")
+                    webView.removeAllViews()
+                    webView.destroy()
+                } catch (_: Exception) { }
             }
+            activeWebView = null
+        }
+    }
 
-            Row(
+    Surface(modifier = Modifier.fillMaxSize(), color = TvBackground) {
+        if (playerUrl.isBlank()) {
+            ConnectionScreen(
+                phoneHost = phoneHost,
+                onHostChange = { phoneHost = it.filter { char -> char.isDigit() || char == '.' } },
+                pairingPin = pairingPin,
+                onPinChange = { pairingPin = it.filter(Char::isDigit).take(6) },
+                error = connectionError,
+                onConnect = {
+                    val host = phoneHost.trim()
+                    val parts = host.split(".")
+                    val validHost = parts.size == 4 && parts.all { part ->
+                        val number = part.toIntOrNull()
+                        number != null && number in 0..255 && part.isNotEmpty()
+                    }
+                    if (!validHost) {
+                        connectionError = "Introduce la dirección IPv4 que aparece en Sonora Remote."
+                    } else if (pairingPin.length != 6) {
+                        connectionError = "El PIN debe tener seis cifras."
+                    } else {
+                        connectionError = ""
+                        loading = true
+                        playerUrl = "http://$host:8765/?pin=$pairingPin"
+                    }
+                }
+            )
+        } else {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(42.dp)
+                    .fillMaxSize()
+                    .background(TvBackground)
             ) {
-                DefaultArtwork(
+                Row(
                     modifier = Modifier
-                        .width(330.dp)
-                        .aspectRatio(1f)
-                )
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center
+                        .fillMaxWidth()
+                        .background(TvPanel)
+                        .padding(horizontal = 28.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        "REPRODUCTOR MUSICAL",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 11.sp,
-                        letterSpacing = 3.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(18.dp))
-                    Text(
-                        "Esperando música",
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(9.dp))
-                    Text(
-                        "Conecta tu celular para comenzar",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 17.sp
-                    )
-                    Spacer(Modifier.height(28.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color(0xFF777F8F))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "SONORA TV",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontSize = 17.sp,
+                            letterSpacing = 3.sp,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "SIN REPRODUCCIÓN",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp,
-                            letterSpacing = 2.sp
+                            "Conectando a $phoneHost",
+                            color = TvMuted,
+                            fontSize = 11.sp
                         )
+                    }
+                    Button(
+                        onClick = {
+                            playerUrl = ""
+                            loading = false
+                            connectionError = ""
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = TvAccent,
+                            contentColor = TvBackground
+                        )
+                    ) {
+                        Text("Desconectar")
                     }
                 }
 
-                QueuePlaceholder(
-                    modifier = Modifier.width(245.dp)
-                )
-            }
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { context ->
+                            WebView(context).apply {
+                                activeWebView = this
+                                setBackgroundColor(AndroidColor.rgb(9, 11, 16))
+                                isFocusable = true
+                                isFocusableInTouchMode = true
+                                settings.apply {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
+                                    databaseEnabled = true
+                                    mediaPlaybackRequiresUserGesture = false
+                                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                    allowFileAccess = false
+                                    allowContentAccess = true
+                                    setSupportZoom(false)
+                                }
+                                webChromeClient = WebChromeClient()
+                                webViewClient = object : WebViewClient() {
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                        loading = false
+                                        connectionError = ""
+                                    }
 
-            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color(0xFF303746))
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    TvControl(Icons.Outlined.SkipPrevious, "Anterior")
-                    TvControl(Icons.Outlined.PlayArrow, "Reproducir", emphasized = true)
-                    TvControl(Icons.Outlined.SkipNext, "Siguiente")
+                                    override fun onReceivedError(
+                                        view: WebView?,
+                                        request: WebResourceRequest?,
+                                        error: android.webkit.WebResourceError?
+                                    ) {
+                                        if (request?.isForMainFrame == true) {
+                                            loading = false
+                                            connectionError = "No se pudo abrir Sonora Remote. Comprueba que el teléfono siga encendido y ambos dispositivos estén en la misma Wi‑Fi."
+                                        }
+                                    }
+
+                                    override fun shouldOverrideUrlLoading(
+                                        view: WebView?,
+                                        request: WebResourceRequest?
+                                    ): Boolean {
+                                        val target = request?.url ?: return true
+                                        if (target.scheme == "about") return false
+                                        return target.scheme != "http" ||
+                                            target.host != phoneHost ||
+                                            target.port != 8765
+                                    }
+                                }
+                                loadUrl(playerUrl)
+                            }
+                        }
+                    )
+
+                    if (loading) {
+                        Card(
+                            modifier = Modifier.align(Alignment.Center),
+                            colors = CardDefaults.cardColors(containerColor = TvPanel)
+                        ) {
+                            Text(
+                                "Abriendo reproductor…",
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                                color = TvMuted,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
+                if (connectionError.isNotBlank()) {
+                    Text(
+                        connectionError,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(TvPanel)
+                            .padding(12.dp),
+                        color = TvAccent,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
@@ -182,102 +237,126 @@ fun TvPlayerScreen() {
 }
 
 @Composable
-private fun DefaultArtwork(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color(0xFF39445D),
-                        Color(0xFF222B3D),
-                        Color(0xFF111722)
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
+private fun ConnectionScreen(
+    phoneHost: String,
+    onHostChange: (String) -> Unit,
+    pairingPin: String,
+    onPinChange: (String) -> Unit,
+    error: String,
+    onConnect: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TvBackground)
+            .padding(horizontal = 56.dp, vertical = 36.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(48.dp)
     ) {
-        Icon(
-            imageVector = Icons.Outlined.Album,
-            contentDescription = "Portada musical predeterminada",
-            tint = Color(0xFFFFC58B),
-            modifier = Modifier.size(126.dp)
-        )
-        Icon(
-            imageVector = Icons.Outlined.MusicNote,
-            contentDescription = null,
-            tint = Color(0xFF20283A),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(25.dp)
-                .size(38.dp)
-        )
-    }
-}
-
-@Composable
-private fun QueuePlaceholder(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xB0161C27))
-            .padding(19.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Icon(
-                imageVector = Icons.Outlined.QueueMusic,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(19.dp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(15.dp),
+                    color = TvPanel
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Outlined.Cast,
+                        contentDescription = null,
+                        tint = TvAccent,
+                        modifier = Modifier.padding(13.dp)
+                    )
+                }
+                Text(
+                    "SONORA TV",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 25.sp,
+                    letterSpacing = 5.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                "Tu música, en pantalla grande.",
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 35.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 41.sp
             )
             Text(
-                "LISTA DE ESPERA",
-                color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 10.sp,
-                letterSpacing = 1.5.sp,
-                fontWeight = FontWeight.SemiBold
+                "Conecta Sonora Remote para abrir tu biblioteca, reproducir archivos del teléfono y controlar la música desde el celular.",
+                color = TvMuted,
+                fontSize = 17.sp,
+                lineHeight = 25.sp
             )
+            Spacer(Modifier.height(5.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                androidx.compose.material3.Icon(Icons.Outlined.Wifi, contentDescription = null, tint = TvAccent)
+                Text(
+                    "Ambos dispositivos deben usar la misma red Wi‑Fi.",
+                    color = TvMuted,
+                    fontSize = 13.sp
+                )
+            }
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color(0xFF343C4A))
-        )
-        Text(
-            "Todavía no hay canciones",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 13.sp
-        )
-    }
-}
 
-@Composable
-private fun TvControl(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    description: String,
-    emphasized: Boolean = false
-) {
-    IconButton(
-        onClick = {},
-        enabled = false,
-        modifier = Modifier
-            .padding(horizontal = 12.dp)
-            .size(if (emphasized) 62.dp else 48.dp)
-            .clip(RoundedCornerShape(50))
-            .background(
-                if (emphasized) Color(0xFF30394A) else Color.Transparent
-            )
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = description,
-            tint = if (emphasized) MaterialTheme.colorScheme.primary else Color(0xFF7D8798),
-            modifier = Modifier.size(if (emphasized) 31.dp else 25.dp)
-        )
+        Card(
+            modifier = Modifier.width(440.dp),
+            shape = RoundedCornerShape(26.dp),
+            colors = CardDefaults.cardColors(containerColor = TvPanel)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(26.dp),
+                verticalArrangement = Arrangement.spacedBy(15.dp)
+            ) {
+                Text(
+                    "Conectar con el teléfono",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "En Sonora Remote pulsa «Conectar». Introduce aquí la IP y el PIN que aparecen en la pantalla del celular.",
+                    color = TvMuted,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+                OutlinedTextField(
+                    value = phoneHost,
+                    onValueChange = onHostChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("IP del teléfono") },
+                    placeholder = { Text("192.168.1.20") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                OutlinedTextField(
+                    value = pairingPin,
+                    onValueChange = onPinChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("PIN de 6 cifras") },
+                    placeholder = { Text("123456") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                if (error.isNotBlank()) {
+                    Text(error, color = TvAccent, fontSize = 12.sp, lineHeight = 17.sp)
+                }
+                Button(
+                    onClick = onConnect,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TvAccent,
+                        contentColor = TvBackground
+                    )
+                ) {
+                    androidx.compose.material3.Icon(Icons.Outlined.Link, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Conectar y abrir reproductor", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
