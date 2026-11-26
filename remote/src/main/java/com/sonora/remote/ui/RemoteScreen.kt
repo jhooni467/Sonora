@@ -77,6 +77,7 @@ fun RemoteScreen(
     onOpenMediaAccess: () -> Unit
 ) {
     val ui by SonoraBridge.state.collectAsState()
+    var controlTv by remember(ui.tvConnected) { mutableStateOf(ui.tvConnected) }
     var showPairing by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
@@ -111,8 +112,12 @@ fun RemoteScreen(
         }
         if (!ui.hasMediaAccess) MediaAccessCard(onOpenMediaAccess = onOpenMediaAccess)
         CurrentTrackCard(ui)
-        ControlSection(ui)
-        VolumeSection(ui)
+        ControlSection(
+            state = ui,
+            controlTv = controlTv,
+            onControlTargetChange = { controlTv = it }
+        )
+        VolumeSection(ui, controlTv && ui.tvConnected)
 
         Card(
             shape = RoundedCornerShape(18.dp),
@@ -303,41 +308,92 @@ private fun CurrentTrackCard(state: RemoteUiState) {
 }
 
 @Composable
-private fun ControlSection(state: RemoteUiState) {
-    val onTv = state.tvConnected
+private fun ControlSection(
+    state: RemoteUiState,
+    controlTv: Boolean,
+    onControlTargetChange: (Boolean) -> Unit
+) {
+    val onTv = state.tvConnected && controlTv
     val source = if (onTv) "SONORA TV" else "TELÉFONO"
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("CONTROLES · $source", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            PadButton(Icons.Outlined.KeyboardArrowUp, "Arriba") {
-                if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "up"))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                PadButton(Icons.Outlined.ChevronLeft, "Izquierda") {
-                    if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "left"))
+        Text(
+            "CONTROLES · $source",
+            color = Muted,
+            fontSize = 10.sp,
+            letterSpacing = 2.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        if (state.tvConnected) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (onTv) {
+                    OutlinedButton(
+                        onClick = { onControlTargetChange(false) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(13.dp)
+                    ) { Text("TELÉFONO") }
+                    Button(
+                        onClick = { onControlTargetChange(true) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Background)
+                    ) { Text("SONORA TV") }
+                } else {
+                    Button(
+                        onClick = { onControlTargetChange(false) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Background)
+                    ) { Text("TELÉFONO") }
+                    OutlinedButton(
+                        onClick = { onControlTargetChange(true) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(13.dp)
+                    ) { Text("SONORA TV") }
                 }
-                PadButton(Icons.Outlined.Check, "Seleccionar", selected = true) {
-                    if (onTv) SonoraBridge.sendTvCommand("select")
-                }
-                PadButton(Icons.Outlined.ChevronRight, "Derecha") {
-                    if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "right"))
-                }
-            }
-            PadButton(Icons.Outlined.KeyboardArrowDown, "Abajo") {
-                if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "down"))
             }
         }
+
+        if (onTv) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                PadButton(Icons.Outlined.KeyboardArrowUp, "Arriba") {
+                    SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "up"))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PadButton(Icons.Outlined.ChevronLeft, "Izquierda") {
+                        SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "left"))
+                    }
+                    PadButton(Icons.Outlined.Check, "Seleccionar", selected = true) {
+                        SonoraBridge.sendTvCommand("select")
+                    }
+                    PadButton(Icons.Outlined.ChevronRight, "Derecha") {
+                        SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "right"))
+                    }
+                }
+                PadButton(Icons.Outlined.KeyboardArrowDown, "Abajo") {
+                    SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "down"))
+                }
+            }
+        }
+
         Text(
-            if (onTv) "El teléfono controla el reproductor de Sonora TV."
-            else "Sin TV conectada, las órdenes se envían al reproductor activo del teléfono.",
+            when {
+                onTv -> "El teléfono controla el reproductor y la biblioteca de Sonora TV."
+                state.tvConnected -> "Controlando el reproductor activo del teléfono. Puedes cambiar a Sonora TV arriba."
+                else -> "Sin TV conectada, las órdenes se envían al reproductor activo del teléfono."
+            },
             color = androidx.compose.ui.graphics.Color(0xFF8793A6),
             fontSize = 11.sp,
             lineHeight = 16.sp
         )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -357,23 +413,25 @@ private fun ControlSection(state: RemoteUiState) {
                 if (onTv) SonoraBridge.sendTvCommand("next") else SonoraBridge.sendPhoneCommand("next")
             }
         }
+
         if (onTv) {
-            OutlinedButton(onClick = { SonoraBridge.sendTvCommand("open_library") }, shape = RoundedCornerShape(13.dp)) {
-                Text("Volver a biblioteca del TV")
-            }
+            OutlinedButton(
+                onClick = { SonoraBridge.sendTvCommand("open_library") },
+                shape = RoundedCornerShape(13.dp)
+            ) { Text("Volver a biblioteca del TV") }
         }
     }
 }
 
 @Composable
-private fun VolumeSection(state: RemoteUiState) {
+private fun VolumeSection(state: RemoteUiState, controlTv: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Icon(Icons.Outlined.VolumeDown, contentDescription = "Bajar volumen", tint = Muted)
             Text("VOLUMEN", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
             Icon(Icons.Outlined.VolumeUp, contentDescription = "Subir volumen", tint = Muted)
         }
-        Slider(value = state.volume, onValueChange = { SonoraBridge.setVolume(it, state.tvConnected) })
+        Slider(value = state.volume, onValueChange = { SonoraBridge.setVolume(it, controlTv) })
     }
 }
 
