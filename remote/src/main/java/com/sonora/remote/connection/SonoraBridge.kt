@@ -1,6 +1,8 @@
 package com.sonora.remote.connection
 
 import android.content.ContentResolver
+import android.graphics.Bitmap
+import android.util.Base64
 import android.content.Context
 import android.media.AudioManager
 import android.media.MediaMetadata
@@ -16,6 +18,7 @@ import org.java_websocket.server.WebSocketServer
 import org.json.JSONObject
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.MutableStateFlow
+import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -35,6 +38,8 @@ data class RemoteUiState(
     val statusMessage: String = "Preparando conexión local…",
     val phoneTitle: String = "No hay música activa",
     val phoneArtist: String = "Reproduce música en tu teléfono",
+    val phoneAlbum: String = "",
+    val phoneArtworkDataUrl: String? = null,
     val phoneApp: String = "",
     val phonePlaying: Boolean = false,
     val phoneDuration: Long = 0L,
@@ -109,11 +114,24 @@ object SonoraBridge {
         val artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
             ?: if (controller == null) "Reproduce música en tu teléfono" else "Artista no disponible"
+        val album = metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty()
         val mediaUri = metadata?.getString(MediaMetadata.METADATA_KEY_MEDIA_URI).orEmpty()
+        val artwork = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        val artworkDataUrl = artwork?.let { bitmap ->
+            runCatching {
+                ByteArrayOutputStream().use { output ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 86, output)
+                    "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                }
+            }.getOrNull()
+        }
         val isPlaying = playback?.state == PlaybackState.STATE_PLAYING
         state.value = state.value.copy(
             phoneTitle = title,
             phoneArtist = artist,
+            phoneAlbum = album,
+            phoneArtworkDataUrl = artworkDataUrl,
             phoneApp = controller?.packageName.orEmpty(),
             phonePlaying = isPlaying,
             phoneDuration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
