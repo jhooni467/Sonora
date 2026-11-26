@@ -159,19 +159,23 @@ fun SonoraBridgePanel() {
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> selectedUri = uri }
 
+    // GetContent avoids document-provider MIME filters that can grey out .lrc files.
+    // The selected URI remains readable for the current app session and is consumed immediately on send.
     val lrcPicker = rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
             val name = client.displayName(uri)
-            if (name.endsWith(".lrc", ignoreCase = true)) {
+            val isLrc = name.endsWith(".lrc", ignoreCase = true) ||
+                context.contentResolver.getType(uri)?.contains("text", ignoreCase = true) == true
+            if (isLrc) {
                 selectedLrcUri = uri
                 selectedLrcName = name
                 lrcStatus = "Seleccionado: $name"
             } else {
                 selectedLrcUri = null
                 selectedLrcName = ""
-                lrcStatus = "Ese archivo no es .LRC. Elige un archivo de letras LRC."
+                lrcStatus = "El archivo elegido no parece ser una letra LRC. Selecciona un archivo .lrc."
             }
         }
     }
@@ -360,7 +364,7 @@ fun SonoraBridgePanel() {
                 ) { Text("Transmitir") }
             }
             OutlinedButton(
-                onClick = { lrcPicker.launch(arrayOf("*/*")) },
+                onClick = { lrcPicker.launch("*/*") },
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (selectedLrcName.isBlank()) "Seleccionar archivo de letras .LRC" else "Cambiar archivo: $selectedLrcName") }
             Text(lrcStatus, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
