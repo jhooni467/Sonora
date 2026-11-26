@@ -109,14 +109,16 @@ class SonoraBridgeClient(private val context: Context) {
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                if (socket === webSocket) socket = null
+                if (socket !== webSocket) return
+                socket = null
                 onConnectionChanged?.invoke(false, "Conexión cerrada con SONORA TV")
                 if (!intentionalDisconnect && code != 4001 && code != 4002) scheduleReconnect()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (socket !== webSocket) return
                 failure.set(t)
-                if (socket === webSocket) socket = null
+                socket = null
                 onConnectionChanged?.invoke(false, "Conexión perdida: ${t.message ?: "error de red"}")
                 opened.countDown()
                 if (!intentionalDisconnect) scheduleReconnect()
