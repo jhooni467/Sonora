@@ -1,6 +1,8 @@
 package com.sonora.remote.connection
 
 import android.content.ContentResolver
+import android.graphics.Bitmap
+import android.util.Base64
 import android.content.Context
 import android.media.AudioManager
 import android.media.MediaMetadata
@@ -16,6 +18,7 @@ import org.java_websocket.server.WebSocketServer
 import org.json.JSONObject
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.MutableStateFlow
+import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -35,6 +38,8 @@ data class RemoteUiState(
     val statusMessage: String = "Preparando conexión local…",
     val phoneTitle: String = "No hay música activa",
     val phoneArtist: String = "Reproduce música en tu teléfono",
+    val phoneAlbum: String = "",
+    val phoneArtworkDataUrl: String? = null,
     val phoneApp: String = "",
     val phonePlaying: Boolean = false,
     val phoneDuration: Long = 0L,
@@ -60,40 +65,18 @@ object SonoraBridge {
     private val streams = ConcurrentHashMap<String, StreamSource>()
 
     @Synchronized
-    fun start(context: Context) {
+    fun initialize(context: Context) {
         appContext = context.applicationContext
-        if (httpServer != null && socketServer != null) return
-
-        val host = findLocalIpv4()
-        val pin = (100000..999999).random().toString()
+        // Pairing is initiated by SONORA TV through the shared cloud bridge.
+        // The old phone-hosted HTTP/WebSocket PIN server is intentionally disabled.
         state.value = state.value.copy(
-            host = host,
-            pin = pin,
-            localUrl = if (host.isNotBlank()) "http://$host:$HTTP_PORT/?pin=$pin" else "",
+            host = "",
+            pin = "------",
+            localUrl = "",
             serverReady = false,
             tvConnected = false,
-            statusMessage = if (host.isBlank()) {
-                "Conecta el teléfono a la misma red Wi‑Fi que el televisor."
-            } else {
-                "Iniciando el enlace local…"
-            }
+            statusMessage = "Introduce el código que genera SONORA TV."
         )
-
-        try {
-            httpServer = TvHttpServer(appContext!!).also {
-                it.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
-            }
-            socketServer = TvSocketServer().also { it.start() }
-            state.value = state.value.copy(
-                serverReady = true,
-                statusMessage = "Abre la dirección local en el navegador del televisor."
-            )
-        } catch (error: Exception) {
-            state.value = state.value.copy(
-                serverReady = false,
-                statusMessage = "No se pudo iniciar la conexión local: ${error.message ?: "error desconocido"}"
-            )
-        }
     }
 
     @Synchronized
@@ -131,11 +114,24 @@ object SonoraBridge {
         val artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
             ?: if (controller == null) "Reproduce música en tu teléfono" else "Artista no disponible"
+        val album = metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty()
         val mediaUri = metadata?.getString(MediaMetadata.METADATA_KEY_MEDIA_URI).orEmpty()
+        val artwork = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        val artworkDataUrl = artwork?.let { bitmap ->
+            runCatching {
+                ByteArrayOutputStream().use { output ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 86, output)
+                    "data:image/jpeg;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+                }
+            }.getOrNull()
+        }
         val isPlaying = playback?.state == PlaybackState.STATE_PLAYING
         state.value = state.value.copy(
             phoneTitle = title,
             phoneArtist = artist,
+            phoneAlbum = album,
+            phoneArtworkDataUrl = artworkDataUrl,
             phoneApp = controller?.packageName.orEmpty(),
             phonePlaying = isPlaying,
             phoneDuration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,

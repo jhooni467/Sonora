@@ -66,81 +66,50 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.sonora.remote.connection.RemoteUiState
 import com.sonora.remote.connection.SonoraBridge
 
-private val Background = androidx.compose.ui.graphics.Color(0xFF090B10)
-private val CardColor = androidx.compose.ui.graphics.Color(0xFF171C26)
-private val Accent = androidx.compose.ui.graphics.Color(0xFFFFB86B)
-private val Muted = androidx.compose.ui.graphics.Color(0xFFB9C0CC)
+private val ThemeOptions = listOf(
+    "original" to "Original",
+    "aurora" to "Aurora",
+    "ocean" to "Océano",
+    "sunset" to "Atardecer",
+    "forest" to "Bosque",
+    "rose" to "Rosa"
+)
+private val LyricsAnimationOptions = listOf(
+    "actual" to "Actual",
+    "recorrer" to "Recorrer",
+    "fluida" to "Fluida"
+)
 
 @Composable
 fun RemoteScreen(
     onChooseAudio: () -> Unit,
-    onOpenMediaAccess: () -> Unit
+    onOpenMediaAccess: () -> Unit,
+    selectedTheme: String,
+    onThemeChange: (String) -> Unit,
+    lyricsAnimation: String,
+    onLyricsAnimationChange: (String) -> Unit
 ) {
     val ui by SonoraBridge.state.collectAsState()
-    var controlTv by remember(ui.tvConnected) { mutableStateOf(ui.tvConnected) }
-    var showPairing by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
-
-    if (showPairing) {
-        PairingDialog(
-            state = ui,
-            onDismiss = { showPairing = false },
-            onCopy = { clipboard.setText(AnnotatedString(ui.localUrl)) }
-        )
-    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Background)
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(19.dp)
     ) {
-        Header(ui = ui)
-        ConnectionCard(state = ui, onPair = { showPairing = true }, onChooseAudio = onChooseAudio)
-        if (ui.tvConnected) {
-            OutlinedButton(
-                onClick = onChooseAudio,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Outlined.MusicNote, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Enviar audio del teléfono al TV")
-            }
-        }
-        if (!ui.hasMediaAccess) MediaAccessCard(onOpenMediaAccess = onOpenMediaAccess)
-        CurrentTrackCard(ui)
-        ControlSection(
-            state = ui,
-            controlTv = controlTv,
-            onControlTargetChange = { controlTv = it }
+        Header()
+        SonoraBridgePanel(selectedTheme = selectedTheme, lyricsAnimation = lyricsAnimation)
+        PersonalizationCard(
+            selectedTheme = selectedTheme,
+            onThemeChange = onThemeChange,
+            lyricsAnimation = lyricsAnimation,
+            onLyricsAnimationChange = onLyricsAnimationChange
         )
-        VolumeSection(ui, controlTv && ui.tvConnected)
-
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = CardColor)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(Icons.Outlined.Tv, contentDescription = null, tint = Accent, modifier = Modifier.size(18.dp))
-                Text(
-                    text = ui.statusMessage,
-                    color = Muted,
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
+        if (!ui.hasMediaAccess) MediaAccessCard(onOpenMediaAccess = onOpenMediaAccess)
         Text(
-            "SONORA · CONTROL MULTIMEDIA LOCAL",
+            "SONORA · CONTROL REMOTO SINCRONIZADO",
             modifier = Modifier.fillMaxWidth(),
             color = androidx.compose.ui.graphics.Color(0xFF737D8E),
             fontSize = 9.sp,
@@ -149,8 +118,74 @@ fun RemoteScreen(
     }
 }
 
+
 @Composable
-private fun Header(ui: RemoteUiState) {
+private fun PersonalizationCard(
+    selectedTheme: String,
+    onThemeChange: (String) -> Unit,
+    lyricsAnimation: String,
+    onLyricsAnimationChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp)
+        ) {
+            Text("AJUSTES · PERSONALIZACIÓN", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text("TEMAS DE COLOR", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, letterSpacing = 1.2.sp)
+            ThemeOptions.chunked(3).forEach { group ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    group.forEach { (id, title) ->
+                        if (selectedTheme == id) {
+                            Button(
+                                onClick = { onThemeChange(id) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text(title, maxLines = 1) }
+                        } else {
+                            OutlinedButton(
+                                onClick = { onThemeChange(id) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) { Text(title, maxLines = 1) }
+                        }
+                    }
+                }
+            }
+            Text("ANIMACIÓN DE LETRAS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, letterSpacing = 1.2.sp)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                LyricsAnimationOptions.forEach { (id, title) ->
+                    if (lyricsAnimation == id) {
+                        Button(
+                            onClick = { onLyricsAnimationChange(id) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(title, maxLines = 1) }
+                    } else {
+                        OutlinedButton(
+                            onClick = { onLyricsAnimationChange(id) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) { Text(title, maxLines = 1) }
+                    }
+                }
+            }
+            Text(
+                "La TV adopta el tema y la animación elegidos mientras el teléfono esté conectado.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun Header() {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -158,30 +193,19 @@ private fun Header(ui: RemoteUiState) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("SONORA", color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-            Text("CONTROL UNIVERSAL", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+            Text("CONTROL UNIVERSAL", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 2.sp)
         }
         Surface(
             shape = CircleShape,
-            color = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF173C31) else androidx.compose.ui.graphics.Color(0xFF242936)
+            color = androidx.compose.ui.graphics.Color(0xFF242936)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Icon(
-                    Icons.Outlined.Tv,
-                    contentDescription = null,
-                    tint = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF79D5AE) else Muted,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    if (ui.tvConnected) "TV CONECTADA" else "SIN TV",
-                    color = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF79D5AE) else Muted,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Icon(Icons.Outlined.Tv, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                Text("CÓDIGO DE TV", color = MaterialTheme.colorScheme.primary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
         }
     }
@@ -189,7 +213,7 @@ private fun Header(ui: RemoteUiState) {
 
 @Composable
 private fun ConnectionCard(state: RemoteUiState, onPair: () -> Unit, onChooseAudio: () -> Unit) {
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = CardColor)) {
+    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -199,13 +223,13 @@ private fun ConnectionCard(state: RemoteUiState, onPair: () -> Unit, onChooseAud
                     modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color(0xFF252D3B)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Tv, contentDescription = null, tint = Accent, modifier = Modifier.size(27.dp))
+                    Icon(Icons.Outlined.Tv, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(27.dp))
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Televisor", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     Text(
                         if (state.tvConnected) state.tvTitle else "Conecta Sonora TV en la misma Wi‑Fi",
-                        color = Muted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -214,7 +238,7 @@ private fun ConnectionCard(state: RemoteUiState, onPair: () -> Unit, onChooseAud
                 Button(
                     onClick = onPair,
                     shape = RoundedCornerShape(15.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = androidx.compose.ui.graphics.Color(0xFF211307))
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = androidx.compose.ui.graphics.Color(0xFF211307))
                 ) {
                     Text(if (state.tvConnected) "Ver enlace" else "Conectar")
                 }
@@ -234,8 +258,8 @@ private fun ConnectionCard(state: RemoteUiState, onPair: () -> Unit, onChooseAud
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("PIN de emparejamiento", color = Muted, fontSize = 11.sp)
-                        Text(state.pin.chunked(3).joinToString(" "), color = Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Text("PIN de emparejamiento", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        Text(state.pin.chunked(3).joinToString(" "), color = MaterialTheme.colorScheme.primary, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                     }
                     OutlinedButton(onClick = onChooseAudio, shape = RoundedCornerShape(13.dp)) {
                         Icon(Icons.Outlined.MusicNote, contentDescription = null, modifier = Modifier.size(17.dp))
@@ -258,14 +282,14 @@ private fun MediaAccessCard(onOpenMediaAccess: () -> Unit) {
             Text("Activa el acceso a música del teléfono", color = androidx.compose.ui.graphics.Color(0xFFFFD6B0), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Text(
                 "Android necesita tu permiso para leer el título, artista y estado del reproductor y enviar órdenes de reproducción.",
-                color = Muted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 lineHeight = 18.sp
             )
             Button(
                 onClick = onOpenMediaAccess,
                 shape = RoundedCornerShape(13.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Background)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.background)
             ) {
                 Text("Abrir acceso multimedia")
             }
@@ -276,8 +300,8 @@ private fun MediaAccessCard(onOpenMediaAccess: () -> Unit) {
 @Composable
 private fun CurrentTrackCard(state: RemoteUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("MÚSICA DEL TELÉFONO", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
-        Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = CardColor)) {
+        Text("MÚSICA DEL TELÉFONO", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
+        Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -285,14 +309,14 @@ private fun CurrentTrackCard(state: RemoteUiState) {
             ) {
                 Box(
                     modifier = Modifier.size(76.dp).clip(RoundedCornerShape(17.dp))
-                        .background(Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color(0xFF343C55), CardColor))),
+                        .background(Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color(0xFF343C55), MaterialTheme.colorScheme.surface))),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = Accent, modifier = Modifier.size(36.dp))
+                    Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(state.phoneTitle, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(state.phoneArtist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(state.phoneArtist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (state.phoneApp.isNotBlank()) {
                         Text(state.phoneApp, color = androidx.compose.ui.graphics.Color(0xFF8793A6), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -300,7 +324,7 @@ private fun CurrentTrackCard(state: RemoteUiState) {
                 Icon(
                     imageVector = if (state.phonePlaying) Icons.Outlined.PlayArrow else Icons.Outlined.MusicNote,
                     contentDescription = if (state.phonePlaying) "Reproduciendo" else "En pausa",
-                    tint = Accent
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -322,7 +346,7 @@ private fun ControlSection(
     ) {
         Text(
             "CONTROLES · $source",
-            color = Muted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
             letterSpacing = 2.sp,
             fontWeight = FontWeight.SemiBold
@@ -343,14 +367,14 @@ private fun ControlSection(
                         onClick = { onControlTargetChange(true) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(13.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Background)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.background)
                     ) { Text("SONORA TV") }
                 } else {
                     Button(
                         onClick = { onControlTargetChange(false) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(13.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Background)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.background)
                     ) { Text("TELÉFONO") }
                     OutlinedButton(
                         onClick = { onControlTargetChange(true) },
@@ -427,9 +451,9 @@ private fun ControlSection(
 private fun VolumeSection(state: RemoteUiState, controlTv: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Icon(Icons.Outlined.VolumeDown, contentDescription = "Bajar volumen", tint = Muted)
-            Text("VOLUMEN", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
-            Icon(Icons.Outlined.VolumeUp, contentDescription = "Subir volumen", tint = Muted)
+            Icon(Icons.Outlined.VolumeDown, contentDescription = "Bajar volumen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("VOLUMEN", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 2.sp)
+            Icon(Icons.Outlined.VolumeUp, contentDescription = "Subir volumen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Slider(value = state.volume, onValueChange = { SonoraBridge.setVolume(it, controlTv) })
     }
@@ -450,7 +474,7 @@ private fun PadButton(
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = if (selected) Accent else androidx.compose.ui.graphics.Color(0xFFE3E7EF),
+            tint = if (selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color(0xFFE3E7EF),
             modifier = Modifier.size(27.dp)
         )
     }
@@ -466,7 +490,7 @@ private fun PlaybackButton(
     IconButton(
         onClick = onClick,
         modifier = Modifier.size(if (large) 66.dp else 54.dp).clip(CircleShape)
-            .background(if (large) Accent else androidx.compose.ui.graphics.Color(0xFF1B212D))
+            .background(if (large) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color(0xFF1B212D))
     ) {
         Icon(
             imageVector = icon,
@@ -481,29 +505,29 @@ private fun PlaybackButton(
 private fun PairingDialog(state: RemoteUiState, onDismiss: () -> Unit, onCopy: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CardColor,
+        containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Conectar Sonora TV", color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "Abre esta dirección en el navegador del televisor o escanea el QR si tu TV tiene cámara.",
-                    color = Muted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 18.sp
                 )
                 if (state.localUrl.isNotBlank()) {
                     QrCodeImage(state.localUrl)
-                    Text(state.localUrl, color = Accent, fontSize = 11.sp, lineHeight = 15.sp)
+                    Text(state.localUrl, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, lineHeight = 15.sp)
                 } else {
-                    Text("Conecta el teléfono a una red Wi‑Fi.", color = Accent)
+                    Text("Conecta el teléfono a una red Wi‑Fi.", color = MaterialTheme.colorScheme.primary)
                 }
-                Text("CÓDIGO MANUAL", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
-                Text(state.pin.chunked(3).joinToString(" "), color = Accent, fontSize = 27.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                Text("En la página de Sonora TV escribe este PIN para emparejar.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                Text("CÓDIGO MANUAL", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, letterSpacing = 2.sp)
+                Text(state.pin.chunked(3).joinToString(" "), color = MaterialTheme.colorScheme.primary, fontSize = 27.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+                Text("En la página de Sonora TV escribe este PIN para emparejar.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, lineHeight = 16.sp)
             }
         },
-        confirmButton = { TextButton(onClick = onCopy) { Text("Copiar dirección", color = Accent) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = Muted) } }
+        confirmButton = { TextButton(onClick = onCopy) { Text("Copiar dirección", color = MaterialTheme.colorScheme.primary) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
     )
 }
 
