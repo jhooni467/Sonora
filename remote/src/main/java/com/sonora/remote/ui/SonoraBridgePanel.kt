@@ -108,6 +108,8 @@ fun SonoraBridgePanel() {
         connected,
         phoneState.phoneTitle,
         phoneState.phoneArtist,
+        phoneState.phoneAlbum,
+        phoneState.phoneArtworkDataUrl,
         phoneState.phoneApp,
         phoneState.phonePlaying,
         phoneState.phoneDuration,
@@ -117,10 +119,11 @@ fun SonoraBridgePanel() {
             client.sendPhonePlaybackState(
                 title = phoneState.phoneTitle,
                 artist = phoneState.phoneArtist,
-                album = phoneState.phoneApp,
+                album = phoneState.phoneAlbum,
                 playing = phoneState.phonePlaying,
                 durationMs = phoneState.phoneDuration,
-                positionMs = phoneState.phonePosition
+                positionMs = phoneState.phonePosition,
+                artworkDataUrl = phoneState.phoneArtworkDataUrl
             )
         }
     }
