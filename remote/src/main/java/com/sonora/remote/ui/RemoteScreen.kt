@@ -1,5 +1,7 @@
 package com.sonora.remote.ui
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,20 +32,21 @@ import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VolumeDown
 import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,324 +54,334 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import com.sonora.remote.connection.RemoteUiState
+import com.sonora.remote.connection.SonoraBridge
 
-private val previewTracks = listOf(
-    "Luz de medianoche",
-    "Horizonte",
-    "Frecuencia"
-)
+private val Background = androidx.compose.ui.graphics.Color(0xFF090B10)
+private val CardColor = androidx.compose.ui.graphics.Color(0xFF171C26)
+private val Accent = androidx.compose.ui.graphics.Color(0xFFFFB86B)
+private val Muted = androidx.compose.ui.graphics.Color(0xFFB9C0CC)
 
 @Composable
-fun RemoteScreen() {
-    var connected by remember { mutableStateOf(false) }
-    var showConnectionInfo by remember { mutableStateOf(false) }
-    var isPlaying by remember { mutableStateOf(false) }
-    var trackIndex by remember { mutableIntStateOf(0) }
-    var volume by remember { mutableFloatStateOf(0.55f) }
+fun RemoteScreen(
+    onChooseAudio: () -> Unit,
+    onOpenMediaAccess: () -> Unit
+) {
+    val ui by SonoraBridge.state.collectAsState()
+    var showPairing by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
 
-    if (showConnectionInfo) {
-        AlertDialog(
-            onDismissRequest = { showConnectionInfo = false },
-            title = { Text("Conectar con Sonora TV") },
-            text = {
-                Text("El emparejamiento entre el celular y el televisor se habilitará en la siguiente etapa.")
-            },
-            confirmButton = {
-                TextButton(onClick = { showConnectionInfo = false }) {
-                    Text("Entendido")
-                }
-            }
+    if (showPairing) {
+        PairingDialog(
+            state = ui,
+            onDismiss = { showPairing = false },
+            onCopy = { clipboard.setText(AnnotatedString(ui.localUrl)) }
         )
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF090B10))
+            .background(Background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 22.dp, vertical = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(horizontal = 20.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(19.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = "SONORA",
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 25.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 4.sp
-                )
-                Text(
-                    text = "CONTROL REMOTO",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    letterSpacing = 2.sp
-                )
-            }
-            Surface(
-                shape = CircleShape,
-                color = if (connected) Color(0xFF173C31) else Color(0xFF242936)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Tv,
-                        contentDescription = null,
-                        tint = if (connected) Color(0xFF79D5AE) else Color(0xFFB9C0CC),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = if (connected) "CONECTADO" else "SIN TV",
-                        color = if (connected) Color(0xFF79D5AE) else Color(0xFFB9C0CC),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 1.sp
-                    )
-                }
-            }
-        }
+        Header(ui = ui)
+        ConnectionCard(state = ui, onPair = { showPairing = true }, onChooseAudio = onChooseAudio)
+        if (!ui.hasMediaAccess) MediaAccessCard(onOpenMediaAccess = onOpenMediaAccess)
+        CurrentTrackCard(ui)
+        ControlSection(ui)
+        VolumeSection(ui)
 
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF171C26))
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = CardColor)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(Color(0xFF252D3B)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Tv,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(25.dp)
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Televisor", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (connected) "Sonora TV" else "Ningún dispositivo vinculado",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
-                }
-                Button(onClick = { showConnectionInfo = true }) {
-                    Text("Conectar")
-                }
-            }
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Text(
-                "AHORA SUENA",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp,
-                letterSpacing = 2.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF171C26))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(RoundedCornerShape(15.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(Color(0xFF343C55), Color(0xFF171C26))
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.MusicNote,
-                            contentDescription = "Portada musical predeterminada",
-                            tint = Color(0xFFFFC58B),
-                            modifier = Modifier.size(37.dp)
-                        )
-                    }
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Text(
-                            previewTracks[trackIndex],
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            "Vista previa de Sonora",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Outlined.MusicNote,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                "NAVEGACIÓN",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp,
-                letterSpacing = 2.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            RemotePad(
-                onUp = {},
-                onDown = {},
-                onLeft = {},
-                onRight = {},
-                onSelect = {}
-            )
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                "REPRODUCCIÓN",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp,
-                letterSpacing = 2.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                PlaybackButton(Icons.Outlined.SkipPrevious, "Anterior") {
-                    trackIndex = (trackIndex - 1 + previewTracks.size) % previewTracks.size
-                }
-                PlaybackButton(if (isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow, if (isPlaying) "Pausar" else "Reproducir", large = true) {
-                    isPlaying = !isPlaying
-                }
-                PlaybackButton(Icons.Outlined.SkipNext, "Siguiente") {
-                    trackIndex = (trackIndex + 1) % previewTracks.size
-                }
-            }
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Icon(
-                    Icons.Outlined.VolumeDown,
-                    contentDescription = "Bajar volumen",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(Icons.Outlined.Tv, contentDescription = null, tint = Accent, modifier = Modifier.size(18.dp))
                 Text(
-                    "VOLUMEN",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    letterSpacing = 2.sp
-                )
-                Icon(
-                    Icons.Outlined.VolumeUp,
-                    contentDescription = "Subir volumen",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = ui.statusMessage,
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.weight(1f)
                 )
             }
-            Slider(
-                value = volume,
-                onValueChange = { volume = it }
-            )
         }
 
         Text(
-            "CONTROLES DE VISTA PREVIA · SIN CONEXIÓN A TV",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            color = Color(0xFF737D8E),
+            "SONORA · CONTROL MULTIMEDIA LOCAL",
+            modifier = Modifier.fillMaxWidth(),
+            color = androidx.compose.ui.graphics.Color(0xFF737D8E),
             fontSize = 9.sp,
-            letterSpacing = 1.2.sp
+            letterSpacing = 1.5.sp
         )
     }
 }
 
 @Composable
-private fun RemotePad(
-    onUp: () -> Unit,
-    onDown: () -> Unit,
-    onLeft: () -> Unit,
-    onRight: () -> Unit,
-    onSelect: () -> Unit
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        PadButton(Icons.Outlined.KeyboardArrowUp, "Arriba", onUp)
+private fun Header(ui: RemoteUiState) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("SONORA", color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+            Text("CONTROL UNIVERSAL", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+        }
+        Surface(
+            shape = CircleShape,
+            color = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF173C31) else androidx.compose.ui.graphics.Color(0xFF242936)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Tv,
+                    contentDescription = null,
+                    tint = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF79D5AE) else Muted,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    if (ui.tvConnected) "TV CONECTADA" else "SIN TV",
+                    color = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF79D5AE) else Muted,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionCard(state: RemoteUiState, onPair: () -> Unit, onChooseAudio: () -> Unit) {
+    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = CardColor)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+                Box(
+                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(androidx.compose.ui.graphics.Color(0xFF252D3B)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Tv, contentDescription = null, tint = Accent, modifier = Modifier.size(27.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Televisor", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(
+                        if (state.tvConnected) state.tvTitle else "Conecta Sonora TV en la misma Wi‑Fi",
+                        color = Muted,
+                        fontSize = 12.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Button(
+                    onClick = onPair,
+                    shape = RoundedCornerShape(15.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = androidx.compose.ui.graphics.Color(0xFF211307))
+                ) {
+                    Text(if (state.tvConnected) "Ver enlace" else "Conectar")
+                }
+            }
+            if (state.tvConnected) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
+                        .background(androidx.compose.ui.graphics.Color(0xFF142D28)).padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Conectado · " + state.tvArtist, color = androidx.compose.ui.graphics.Color(0xFF9DE2C3), fontSize = 12.sp)
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("PIN de emparejamiento", color = Muted, fontSize = 11.sp)
+                        Text(state.pin.chunked(3).joinToString(" "), color = Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                    }
+                    OutlinedButton(onClick = onChooseAudio, shape = RoundedCornerShape(13.dp)) {
+                        Icon(Icons.Outlined.MusicNote, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Enviar audio")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaAccessCard(onOpenMediaAccess: () -> Unit) {
+    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color(0xFF26202A))) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Text("Activa el acceso a música del teléfono", color = androidx.compose.ui.graphics.Color(0xFFFFD6B0), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(
+                "Android necesita tu permiso para leer el título, artista y estado del reproductor y enviar órdenes de reproducción.",
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 18.sp
+            )
+            Button(
+                onClick = onOpenMediaAccess,
+                shape = RoundedCornerShape(13.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Background)
+            ) {
+                Text("Abrir acceso multimedia")
+            }
+        }
+    }
+}
+
+@Composable
+private fun CurrentTrackCard(state: RemoteUiState) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("MÚSICA DEL TELÉFONO", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
+        Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = CardColor)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Box(
+                    modifier = Modifier.size(76.dp).clip(RoundedCornerShape(17.dp))
+                        .background(Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color(0xFF343C55), CardColor))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = Accent, modifier = Modifier.size(36.dp))
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(state.phoneTitle, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(state.phoneArtist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (state.phoneApp.isNotBlank()) {
+                        Text(state.phoneApp, color = androidx.compose.ui.graphics.Color(0xFF8793A6), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Icon(
+                    imageVector = if (state.phonePlaying) Icons.Outlined.PlayArrow else Icons.Outlined.MusicNote,
+                    contentDescription = if (state.phonePlaying) "Reproduciendo" else "En pausa",
+                    tint = Accent
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ControlSection(state: RemoteUiState) {
+    val onTv = state.tvConnected
+    val source = if (onTv) "SONORA TV" else "TELÉFONO"
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("CONTROLES · $source", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.SemiBold)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            PadButton(Icons.Outlined.KeyboardArrowUp, "Arriba") {
+                if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "up"))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                PadButton(Icons.Outlined.ChevronLeft, "Izquierda") {
+                    if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "left"))
+                }
+                PadButton(Icons.Outlined.Check, "Seleccionar", selected = true) {
+                    if (onTv) SonoraBridge.sendTvCommand("select")
+                }
+                PadButton(Icons.Outlined.ChevronRight, "Derecha") {
+                    if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "right"))
+                }
+            }
+            PadButton(Icons.Outlined.KeyboardArrowDown, "Abajo") {
+                if (onTv) SonoraBridge.sendTvCommand("navigate", org.json.JSONObject().put("direction", "down"))
+            }
+        }
+        Text(
+            if (onTv) "El teléfono controla el reproductor de Sonora TV."
+            else "Sin TV conectada, las órdenes se envían al reproductor activo del teléfono.",
+            color = androidx.compose.ui.graphics.Color(0xFF8793A6),
+            fontSize = 11.sp,
+            lineHeight = 16.sp
+        )
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PadButton(Icons.Outlined.ChevronLeft, "Izquierda", onLeft)
-            PadButton(Icons.Outlined.Check, "Seleccionar", onSelect, selected = true)
-            PadButton(Icons.Outlined.ChevronRight, "Derecha", onRight)
+            PlaybackButton(Icons.Outlined.SkipPrevious, "Anterior") {
+                if (onTv) SonoraBridge.sendTvCommand("previous") else SonoraBridge.sendPhoneCommand("previous")
+            }
+            PlaybackButton(
+                if ((if (onTv) state.tvPlaying else state.phonePlaying)) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                if ((if (onTv) state.tvPlaying else state.phonePlaying)) "Pausar" else "Reproducir",
+                large = true
+            ) {
+                if (onTv) SonoraBridge.sendTvCommand("toggle") else SonoraBridge.sendPhoneCommand("toggle")
+            }
+            PlaybackButton(Icons.Outlined.SkipNext, "Siguiente") {
+                if (onTv) SonoraBridge.sendTvCommand("next") else SonoraBridge.sendPhoneCommand("next")
+            }
         }
-        PadButton(Icons.Outlined.KeyboardArrowDown, "Abajo", onDown)
+        if (onTv) {
+            OutlinedButton(onClick = { SonoraBridge.sendTvCommand("open_library") }, shape = RoundedCornerShape(13.dp)) {
+                Text("Volver a biblioteca del TV")
+            }
+        }
+    }
+}
+
+@Composable
+private fun VolumeSection(state: RemoteUiState) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Icon(Icons.Outlined.VolumeDown, contentDescription = "Bajar volumen", tint = Muted)
+            Text("VOLUMEN", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+            Icon(Icons.Outlined.VolumeUp, contentDescription = "Subir volumen", tint = Muted)
+        }
+        Slider(value = state.volume, onValueChange = { SonoraBridge.setVolume(it, state.tvConnected) })
     }
 }
 
 @Composable
 private fun PadButton(
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
-    onClick: () -> Unit,
-    selected: Boolean = false
+    selected: Boolean = false,
+    onClick: () -> Unit
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier
-            .size(if (selected) 62.dp else 54.dp)
-            .clip(CircleShape)
-            .background(if (selected) Color(0xFF343D50) else Color(0xFF1B212D))
+        modifier = Modifier.size(if (selected) 62.dp else 54.dp).clip(CircleShape)
+            .background(if (selected) androidx.compose.ui.graphics.Color(0xFF343D50) else androidx.compose.ui.graphics.Color(0xFF1B212D))
     ) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = if (selected) MaterialTheme.colorScheme.primary else Color(0xFFE3E7EF),
+            tint = if (selected) Accent else androidx.compose.ui.graphics.Color(0xFFE3E7EF),
             modifier = Modifier.size(27.dp)
         )
     }
@@ -377,23 +389,75 @@ private fun PadButton(
 
 @Composable
 private fun PlaybackButton(
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
     large: Boolean = false,
     onClick: () -> Unit
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier
-            .size(if (large) 66.dp else 54.dp)
-            .clip(CircleShape)
-            .background(if (large) MaterialTheme.colorScheme.primary else Color(0xFF1B212D))
+        modifier = Modifier.size(if (large) 66.dp else 54.dp).clip(CircleShape)
+            .background(if (large) Accent else androidx.compose.ui.graphics.Color(0xFF1B212D))
     ) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = if (large) Color(0xFF211307) else Color(0xFFE3E7EF),
+            tint = if (large) androidx.compose.ui.graphics.Color(0xFF211307) else androidx.compose.ui.graphics.Color(0xFFE3E7EF),
             modifier = Modifier.size(if (large) 31.dp else 25.dp)
+        )
+    }
+}
+
+@Composable
+private fun PairingDialog(state: RemoteUiState, onDismiss: () -> Unit, onCopy: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardColor,
+        title = { Text("Conectar Sonora TV", color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Abre esta dirección en el navegador del televisor o escanea el QR si tu TV tiene cámara.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+                if (state.localUrl.isNotBlank()) {
+                    QrCodeImage(state.localUrl)
+                    Text(state.localUrl, color = Accent, fontSize = 11.sp, lineHeight = 15.sp)
+                } else {
+                    Text("Conecta el teléfono a una red Wi‑Fi.", color = Accent)
+                }
+                Text("CÓDIGO MANUAL", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                Text(state.pin.chunked(3).joinToString(" "), color = Accent, fontSize = 27.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+                Text("En la página de Sonora TV escribe este PIN para emparejar.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onCopy) { Text("Copiar dirección", color = Accent) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = Muted) } }
+    )
+}
+
+@Composable
+private fun QrCodeImage(value: String) {
+    val bitmap = remember(value) {
+        runCatching {
+            val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, 300, 300)
+            Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888).apply {
+                for (x in 0 until 300) {
+                    for (y in 0 until 300) {
+                        setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                    }
+                }
+            }
+        }.getOrNull()
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Código QR para abrir Sonora TV",
+            modifier = Modifier.size(190.dp).clip(RoundedCornerShape(14.dp))
+                .background(androidx.compose.ui.graphics.Color.White).padding(8.dp)
         )
     }
 }
