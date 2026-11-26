@@ -94,6 +94,12 @@ fun SonoraBridgePanel() {
                         }
                     }
                 }
+                "next", "previous" -> {
+                    if (message.optString("from") == "tv") {
+                        val action = message.optString("type")
+                        scope.launch { SonoraBridge.sendPhoneCommand(action) }
+                    }
+                }
             }
         }
     }
