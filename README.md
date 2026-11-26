@@ -28,3 +28,15 @@ Sonora/
 ├── tv/        # Android TV / Google TV player app
 └── .github/workflows/android.yml
 ```
+
+
+## SONORA Bridge integration
+
+The phone module now includes a QR/code pairing panel and an audio picker. It uses the shared SONORA TV Bridge protocol:
+- Pair with a six-digit code or scan the receiver QR.
+- Read title, artist, album, duration and embedded artwork from the selected audio file.
+- Send the full audio file to SONORA TV.
+- Stream audio in chunks through the bridge while the TV plays it.
+- Send play/pause, previous and next control messages.
+
+See the SONORA-TV repository file PROTOCOL.md for the current endpoint and message contract. Configure the HTTPS bridge URL shown by the SONORA TV receiver before pairing.
