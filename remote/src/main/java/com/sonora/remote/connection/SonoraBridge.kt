@@ -60,40 +60,18 @@ object SonoraBridge {
     private val streams = ConcurrentHashMap<String, StreamSource>()
 
     @Synchronized
-    fun start(context: Context) {
+    fun initialize(context: Context) {
         appContext = context.applicationContext
-        if (httpServer != null && socketServer != null) return
-
-        val host = findLocalIpv4()
-        val pin = (100000..999999).random().toString()
+        // Pairing is initiated by SONORA TV through the shared cloud bridge.
+        // The old phone-hosted HTTP/WebSocket PIN server is intentionally disabled.
         state.value = state.value.copy(
-            host = host,
-            pin = pin,
-            localUrl = if (host.isNotBlank()) "http://$host:$HTTP_PORT/?pin=$pin" else "",
+            host = "",
+            pin = "------",
+            localUrl = "",
             serverReady = false,
             tvConnected = false,
-            statusMessage = if (host.isBlank()) {
-                "Conecta el teléfono a la misma red Wi‑Fi que el televisor."
-            } else {
-                "Iniciando el enlace local…"
-            }
+            statusMessage = "Introduce el código que genera SONORA TV."
         )
-
-        try {
-            httpServer = TvHttpServer(appContext!!).also {
-                it.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
-            }
-            socketServer = TvSocketServer().also { it.start() }
-            state.value = state.value.copy(
-                serverReady = true,
-                statusMessage = "Abre la dirección local en el navegador del televisor."
-            )
-        } catch (error: Exception) {
-            state.value = state.value.copy(
-                serverReady = false,
-                statusMessage = "No se pudo iniciar la conexión local: ${error.message ?: "error desconocido"}"
-            )
-        }
     }
 
     @Synchronized
