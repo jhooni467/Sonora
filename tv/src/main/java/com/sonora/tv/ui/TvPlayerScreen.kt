@@ -5,8 +5,12 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.ValueCallback
+import android.net.Uri
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +64,11 @@ fun TvPlayerScreen() {
     var connectionError by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
+    var pendingFileCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        pendingFileCallback?.onReceiveValue(uris.takeIf { it.isNotEmpty() }?.toTypedArray())
+        pendingFileCallback = null
+    }
 
     BackHandler(enabled = playerUrl.isNotBlank()) {
         playerUrl = ""
@@ -170,7 +179,19 @@ fun TvPlayerScreen() {
                                     allowContentAccess = true
                                     setSupportZoom(false)
                                 }
-                                webChromeClient = WebChromeClient()
+                                webChromeClient = object : WebChromeClient() {
+                                    override fun onShowFileChooser(
+                                        webView: WebView?,
+                                        filePathCallback: ValueCallback<Array<Uri>>?,
+                                        fileChooserParams: FileChooserParams?
+                                    ): Boolean {
+                                        if (filePathCallback == null) return false
+                                        pendingFileCallback?.onReceiveValue(null)
+                                        pendingFileCallback = filePathCallback
+                                        audioPicker.launch(arrayOf("audio/*"))
+                                        return true
+                                    }
+                                }
                                 webViewClient = object : WebViewClient() {
                                     override fun onPageFinished(view: WebView?, url: String?) {
                                         loading = false
@@ -329,7 +350,7 @@ private fun ConnectionScreen(
                     label = { Text("IP del teléfono") },
                     placeholder = { Text("192.168.1.20") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
                 )
                 OutlinedTextField(
                     value = pairingPin,
