@@ -98,6 +98,11 @@ fun SonoraBridgePanel() {
                     )
                 }) { Text("Escanear QR") }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(onClick = { client.sendControl("previous") }, enabled = connected) { Text("Anterior") }
+                Button(onClick = { client.sendControl("toggle") }, enabled = connected) { Text("Reproducir / Pausar") }
+                OutlinedButton(onClick = { client.sendControl("next") }, enabled = connected) { Text("Siguiente") }
+            }
             OutlinedButton(
                 onClick = { picker.launch(arrayOf("audio/*")) },
                 modifier = Modifier.fillMaxWidth()
