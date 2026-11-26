@@ -37,7 +37,7 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses
-          sdkmanager --channel=3 "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+          sdkmanager --channel=3 "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
 
       - name: Build debug APKs
         run: gradle --no-daemon :remote:assembleDebug :tv:assembleDebug
