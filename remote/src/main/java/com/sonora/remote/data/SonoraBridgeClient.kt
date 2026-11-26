@@ -171,6 +171,14 @@ class SonoraBridgeClient(private val context: Context) {
         }, delaySeconds, TimeUnit.SECONDS)
     }
 
+    fun sendPreferences(themeId: String, lyricsAnimation: String): Boolean {
+        val message = JSONObject()
+            .put("type", "preferences")
+            .put("theme", themeId)
+            .put("lyricsAnimation", lyricsAnimation)
+        return socket?.send(message.toString()) == true
+    }
+
     fun sendControl(type: String, value: Double? = null): Boolean {
         val message = JSONObject().put("type", type)
         if (value != null) {
