@@ -20,6 +20,8 @@ import okio.BufferedSink
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit.SECONDS
 
 data class SonoraTrackMetadata(
     val title: String,
@@ -43,6 +45,7 @@ class SonoraBridgeClient(private val context: Context) {
     private var socket: WebSocket? = null
     @Volatile private var token: String? = null
     @Volatile private var baseUrl: String = ""
+    private val pendingMessages = java.util.concurrent.CopyOnWriteArrayList<String>()
 
     suspend fun pair(serverUrl: String, sixDigitCode: String, deviceName: String = "SONORA"): Boolean =
         withContext(Dispatchers.IO) {
@@ -66,11 +69,21 @@ class SonoraBridgeClient(private val context: Context) {
         val wsUrl = baseUrl.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") +
             "/ws?token=$currentToken"
         val request = Request.Builder().url(wsUrl).build()
+        val opened = CountDownLatch(1)
         socket = http.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                pendingMessages.forEach { webSocket.send(it) }
+                pendingMessages.clear()
+                opened.countDown()
+            }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                opened.countDown()
+            }
             override fun onMessage(webSocket: WebSocket, text: String) {
-                // The UI can subscribe to this callback in a later screen iteration.
+                // Incoming TV state is handled by the remote UI in the next playback iteration.
             }
         })
+        if (!opened.await(12, SECONDS)) throw IOException("No se pudo abrir el canal de control.")
     }
 
     fun sendControl(type: String, value: Double? = null) {
@@ -148,7 +161,8 @@ class SonoraBridgeClient(private val context: Context) {
             .put("title", meta.title).put("artist", meta.artist).put("album", meta.album)
             .put("durationMs", meta.durationMs)
         meta.artworkDataUrl?.let { message.put("artworkDataUrl", it) }
-        socket?.send(message.toString())
+        val serialized = message.toString()
+        if (socket?.send(serialized) != true) pendingMessages.add(serialized)
     }
 
     private fun uriBody(uri: Uri, mime: String): RequestBody = object : RequestBody() {
