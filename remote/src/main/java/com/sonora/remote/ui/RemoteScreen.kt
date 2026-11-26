@@ -78,16 +78,6 @@ fun RemoteScreen(
 ) {
     val ui by SonoraBridge.state.collectAsState()
     var controlTv by remember(ui.tvConnected) { mutableStateOf(ui.tvConnected) }
-    var showPairing by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
-
-    if (showPairing) {
-        PairingDialog(
-            state = ui,
-            onDismiss = { showPairing = false },
-            onCopy = { clipboard.setText(AnnotatedString(ui.localUrl)) }
-        )
-    }
 
     Column(
         modifier = Modifier
@@ -97,8 +87,8 @@ fun RemoteScreen(
             .padding(horizontal = 20.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(19.dp)
     ) {
-        Header(ui = ui)
-        ConnectionCard(state = ui, onPair = { showPairing = true }, onChooseAudio = onChooseAudio)
+        Header()
+        SonoraBridgePanel()
         if (ui.tvConnected) {
             OutlinedButton(
                 onClick = onChooseAudio,
@@ -140,7 +130,7 @@ fun RemoteScreen(
         }
 
         Text(
-            "SONORA · CONTROL MULTIMEDIA LOCAL",
+            "SONORA · EMPAREJAMIENTO CON SONORA TV",
             modifier = Modifier.fillMaxWidth(),
             color = androidx.compose.ui.graphics.Color(0xFF737D8E),
             fontSize = 9.sp,
@@ -150,7 +140,7 @@ fun RemoteScreen(
 }
 
 @Composable
-private fun Header(ui: RemoteUiState) {
+private fun Header() {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -162,26 +152,15 @@ private fun Header(ui: RemoteUiState) {
         }
         Surface(
             shape = CircleShape,
-            color = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF173C31) else androidx.compose.ui.graphics.Color(0xFF242936)
+            color = androidx.compose.ui.graphics.Color(0xFF242936)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Icon(
-                    Icons.Outlined.Tv,
-                    contentDescription = null,
-                    tint = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF79D5AE) else Muted,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    if (ui.tvConnected) "TV CONECTADA" else "SIN TV",
-                    color = if (ui.tvConnected) androidx.compose.ui.graphics.Color(0xFF79D5AE) else Muted,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Icon(Icons.Outlined.Tv, contentDescription = null, tint = Accent, modifier = Modifier.size(16.dp))
+                Text("CÓDIGO DE TV", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
         }
     }
