@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        SonoraBridge.start(applicationContext)
+        SonoraBridge.initialize(applicationContext)
 
         setContent {
             val audioPicker = rememberLauncherForActivityResult(
