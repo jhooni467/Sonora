@@ -21,7 +21,6 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit.SECONDS
 
 data class SonoraTrackMetadata(
     val title: String,
@@ -83,7 +82,7 @@ class SonoraBridgeClient(private val context: Context) {
                 // Incoming TV state is handled by the remote UI in the next playback iteration.
             }
         })
-        if (!opened.await(12, SECONDS)) throw IOException("No se pudo abrir el canal de control.")
+        if (!opened.await(12, TimeUnit.SECONDS)) throw IOException("No se pudo abrir el canal de control.")
     }
 
     fun sendControl(type: String, value: Double? = null) {
