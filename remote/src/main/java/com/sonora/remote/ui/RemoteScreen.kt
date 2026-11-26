@@ -98,6 +98,17 @@ fun RemoteScreen(
     ) {
         Header(ui = ui)
         ConnectionCard(state = ui, onPair = { showPairing = true }, onChooseAudio = onChooseAudio)
+        if (ui.tvConnected) {
+            OutlinedButton(
+                onClick = onChooseAudio,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Outlined.MusicNote, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Enviar audio del teléfono al TV")
+            }
+        }
         if (!ui.hasMediaAccess) MediaAccessCard(onOpenMediaAccess = onOpenMediaAccess)
         CurrentTrackCard(ui)
         ControlSection(ui)
