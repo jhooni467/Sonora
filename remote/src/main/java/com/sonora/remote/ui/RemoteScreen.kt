@@ -101,7 +101,7 @@ fun RemoteScreen() {
             }
             Surface(
                 shape = CircleShape,
-                color = if (connected) Color(0xFF173C31) else Color(0xFF242936)
+                color = Color(0xFF242936)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -111,12 +111,12 @@ fun RemoteScreen() {
                     Icon(
                         imageVector = Icons.Outlined.Tv,
                         contentDescription = null,
-                        tint = if (connected) Color(0xFF79D5AE) else Color(0xFFB9C0CC),
+                        tint = Color(0xFFB9C0CC),
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = if (connected) "CONECTADO" else "SIN TV",
-                        color = if (connected) Color(0xFF79D5AE) else Color(0xFFB9C0CC),
+                        text = "VINCULA TU TV",
+                        color = Color(0xFFB9C0CC),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp
